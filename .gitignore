@@ -1,0 +1,38 @@
+# --- PYTHON ---
+# Fichiers compilés (accélèrent l'exécution mais inutiles à partager)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- ENVIRONNEMENTS VIRTUALS ---
+# À ne JAMAIS commit (trop lourd et spécifique à votre machine)
+.venv/
+venv/
+env/
+ENV/
+bin/
+lib/
+develop-eggs/
+dist/
+build/
+
+# --- CONFIGURATION ÉDITEUR (VS Code / PyCharm) ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- VARIABLES D'ENVIRONNEMENT (SÉCURITÉ) ---
+# Empêche de partager vos clés API et mots de passe par erreur
+.env
+.envrc
+
+# --- TESTS & LOGS ---
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# --- OS ---
+.DS_Store
+Thumbs.db
