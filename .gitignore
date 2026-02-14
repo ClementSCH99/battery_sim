@@ -36,3 +36,7 @@ htmlcov/
 # --- OS ---
 .DS_Store
 Thumbs.db
+
+# --- DEBUG ---
+*.jpeg
+

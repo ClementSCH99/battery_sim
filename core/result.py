@@ -1,21 +1,22 @@
 # battery_sim/core/result.py
 from typing import Optional, Dict
 from battery_sim.types.timeseries import TimeSeries
+from battery_sim.types.signal import Signal
 
 class Result:
-    def __init__(self, data: Dict[str, TimeSeries]):
+    def __init__(self, data: Dict[Signal, TimeSeries]):
         self._data = data
 
-    def get(self, name: str) -> TimeSeries:
-        return self._data[name]
+    def get(self, signal: Signal) -> TimeSeries:
+        return self._data[signal]
 
-    def final(self, name: str) -> float:
-        return self._data[name].values[-1]
+    def final(self, signal: Signal) -> float:
+        return self._data[signal].values[-1]
 
-    def available_signals(self):
+    def available_signals(self) -> list[Signal]:
         return list(self._data.keys())
     
-    def plot(self, names: Optional[list[str]]):
+    def plot(self, names: Optional[list[Signal]]):
         import matplotlib.pyplot as plt
 
         if names is None:
