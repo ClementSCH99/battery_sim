@@ -1,7 +1,10 @@
 # battery_sim/core/cell.py
 from dataclasses import dataclass, field
 from battery_sim.core.exceptions import CellValidationError
-from typing import Optional, Dict
+from typing import Optional, Dict, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from battery_sim.core.cell_presets import CellPresets
 
 
 @dataclass(frozen=True)
@@ -36,3 +39,35 @@ class Cell:
             raise CellValidationError(
                 "Cell nominal voltage must be positive - Cell not valide"
                 )
+
+    @classmethod
+    def preset(cls, preset_name: str) -> "Cell":
+        """
+        Create a Cell from a preset configuration.
+        
+        Args:
+            preset_name: Name of preset (e.g., 'LFP_5AH', 'NMC_5AH')
+            
+        Returns:
+            Cell with preset parameters
+            
+        Raises:
+            ValueError: If preset not found
+            
+        Example:
+            >>> cell = Cell.preset('LFP_5AH')
+            >>> cell.chemistry
+            'LFP'
+            >>> cell.nominal_capacity_Ah
+            5.0
+        """
+        # Lazy import to avoid circular dependency
+        from battery_sim.core.cell_presets import CellPresets
+        return CellPresets.get_cell(preset_name)
+
+    @classmethod
+    def list_presets(cls) -> list[str]:
+        """List all available cell presets."""
+        from battery_sim.core.cell_presets import CellPresets
+        return CellPresets.list_all()
+

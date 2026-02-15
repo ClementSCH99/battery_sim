@@ -1,12 +1,15 @@
 # battery_sim/core/result.py
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 import numpy as np
 from battery_sim.types.timeseries import TimeSeries
 from battery_sim.types.signal import Signal
 
 class Result:
-    def __init__(self, data: Dict[Signal, TimeSeries]):
+    def __init__(self, data: Dict[Signal, TimeSeries], parameter_override: Optional["Any"] = None):
         self._data = data
+        # parameter_override is of type ParameterOverride from core.parameter_sweep
+        # Using Any to avoid circular imports
+        self.parameter_override = parameter_override
 
     def get(self, signal: Signal) -> TimeSeries:
         """Get raw TimeSeries data for a signal."""
@@ -19,6 +22,22 @@ class Result:
     def available_signals(self) -> list[Signal]:
         """List all available signals in result."""
         return list(self._data.keys())
+    
+    def get_parameter_override(self) -> Optional["Any"]:
+        """
+        Get parameter override information (if any).
+        
+        Returns ParameterOverride object that tracks which parameters were modified,
+        or None if simulation used default parameters.
+        """
+        return self.parameter_override
+    
+    def has_parameter_overrides(self) -> bool:
+        """Check if result has any parameter overrides."""
+        if self.parameter_override is None:
+            return False
+        return (bool(self.parameter_override.cell_parameters) or 
+                bool(self.parameter_override.environment_parameters))
     
     # ============ Convenience accessors ============
     

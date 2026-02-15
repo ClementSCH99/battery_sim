@@ -38,7 +38,7 @@ class PyBaMMBackend(SimulationBackend):
         )
 
         solution = sim.solve(
-            initial_soc=0
+            initial_soc=simulation.solver_config.initial_soc,
             )
 
         data = {}
