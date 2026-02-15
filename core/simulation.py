@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from battery_sim.core.result import Result
+    from battery_sim.core.simulation_run import SimulationRun
     
 from battery_sim.backend.base import SimulationBackend
 from battery_sim.core.cell import Cell
@@ -23,9 +24,16 @@ class Simulation:
     backend: SimulationBackend
     solver_config: SolverConfig = field(default_factory=SolverConfig)
 
-    def run(self, **solver_options) -> "Result":
+    def run(self, **solver_options) -> "SimulationRun":
         """
-        Execute the simulation and return a Result object.
+        Execute the simulation and return a SimulationRun object.
+        
+        **B11 Enhancement**: Returns complete SimulationRun with Result, Metadata, Errors, and Diagnostics.
+        
+        **Backward Compatibility**: SimulationRun delegates to Result, so old code still works:
+            run = simulation.run()
+            efficiency = run.charge_discharge_efficiency()  # Works!
+            result = run.result  # Access Result separately if needed
         """
         self.validate()
         return self.backend.run(self, **solver_options)

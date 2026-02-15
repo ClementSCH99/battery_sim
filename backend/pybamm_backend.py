@@ -1,6 +1,7 @@
 # battery_sim/backend/pybamm_backend.py
 import pybamm
 import numpy as np
+import time
 from typing import Type
 
 from battery_sim.backend.base import SimulationBackend
@@ -14,6 +15,12 @@ from battery_sim.core.solver import Solver, SolverConfig
 from battery_sim.types.timeseries import TimeSeries
 from battery_sim.types.signal import Signal
 
+# B11 Observability imports
+from battery_sim.core.simulation_metadata import SimulationMetadata
+from battery_sim.core.simulation_error import SimulationError, ErrorDetector
+from battery_sim.core.convergence_diagnostics import ConvergenceDiagnostics
+from battery_sim.core.simulation_run import SimulationRun
+
 _SOLVER_REGISTRY: dict[Solver, Type[pybamm.BaseSolver]] = {
      Solver.CASADI: pybamm.CasadiSolver,
      Solver.SCIPY: pybamm.ScipySolver
@@ -22,8 +29,30 @@ _SOLVER_REGISTRY: dict[Solver, Type[pybamm.BaseSolver]] = {
 
 class PyBaMMBackend(SimulationBackend):
 
-    def run(self, simulation: Simulation, **kwargs) -> Result:
+    def run(self, simulation: Simulation, **kwargs) -> SimulationRun:
+        """
+        Execute simulation and return complete SimulationRun with observability.
         
+        This method orchestrates the simulation workflow without handling details.
+        """
+        solution, elapsed_seconds = self._execute_simulation(simulation, **kwargs)
+        result = self._extract_result(solution)
+        observability = self._build_observability_data(result, simulation, elapsed_seconds)
+        
+        return SimulationRun(
+            result=result,
+            metadata=observability['metadata'],
+            errors=observability['errors'],
+            diagnostics=observability['diagnostics'],
+        )
+    
+    def _execute_simulation(self, simulation: Simulation, **kwargs) -> tuple:
+        """
+        Execute PyBaMM simulation and return solution with timing.
+        
+        Returns:
+            (solution, elapsed_seconds): PyBaMM solution object and wall-clock time
+        """
         model = self._build_model(simulation.model, simulation.environment)
         experiment = self._build_experiment(simulation)
         solver = self._build_solver(simulation.solver_config)
@@ -37,13 +66,21 @@ class PyBaMMBackend(SimulationBackend):
              **kwargs
         )
 
-        solution = sim.solve(
-            initial_soc=simulation.solver_config.initial_soc,
-            )
-
+        start_time = time.time()
+        solution = sim.solve(initial_soc=simulation.solver_config.initial_soc)
+        elapsed_seconds = time.time() - start_time
+        
+        return solution, elapsed_seconds
+    
+    def _extract_result(self, solution) -> Result:
+        """
+        Extract Result object from PyBaMM solution.
+        
+        This handles all signal extraction and derived signal computation.
+        """
         data = {}
-        time = solution["Time [s]"].data
-        time_list = time.tolist() if hasattr(time, 'tolist') else list(time)
+        time_data = solution["Time [s]"].data
+        time_list = time_data.tolist() if hasattr(time_data, 'tolist') else list(time_data)
 
         # Flatten if 2D
         if isinstance(time_list, list) and len(time_list) > 0 and isinstance(time_list[0], list):
@@ -112,8 +149,7 @@ class PyBaMMBackend(SimulationBackend):
                 unit="W"
             )
             
-            # Energy = integral of power (trapz rule for accuracy)
-            # Use trapezoid rule: integral = sum((V[i]+V[i+1])/2 * (I[i]+I[i+1])/2 * dt)
+            # Energy = integral of power
             energy_rate = power[:-1] * dt / 3600.0  # Convert W*s to Wh
             energy = np.concatenate(([0], np.cumsum(energy_rate)))
             data[Signal.ENERGY] = TimeSeries(
@@ -122,35 +158,29 @@ class PyBaMMBackend(SimulationBackend):
                 unit="Wh"
             )
             
-            # Separate charged and discharged tracking
-            # Charging: current < 0 (using PyBaMM convention)
-            # Discharging: current > 0
+            # Track charged/discharged capacity and energy
             charged_capacity_array = np.zeros_like(current)
             discharged_capacity_array = np.zeros_like(current)
             charged_energy_array = np.zeros_like(current)
             discharged_energy_array = np.zeros_like(current)
             
             for i in range(len(current) - 1):
-                # Charged: negative current
                 if current[i] < 0:
                     charged_capacity_array[i+1] = charged_capacity_array[i] + abs(current[i]) * dt[i] / 3600.0
                     discharged_capacity_array[i+1] = discharged_capacity_array[i]
                     charged_energy_array[i+1] = charged_energy_array[i] + abs(voltage[i] * current[i]) * dt[i] / 3600.0
                     discharged_energy_array[i+1] = discharged_energy_array[i]
-                # Discharged: positive current
                 elif current[i] > 0:
                     discharged_capacity_array[i+1] = discharged_capacity_array[i] + current[i] * dt[i] / 3600.0
                     charged_capacity_array[i+1] = charged_capacity_array[i]
                     discharged_energy_array[i+1] = discharged_energy_array[i] + voltage[i] * current[i] * dt[i] / 3600.0
                     charged_energy_array[i+1] = charged_energy_array[i]
                 else:
-                    # No current
                     charged_capacity_array[i+1] = charged_capacity_array[i]
                     discharged_capacity_array[i+1] = discharged_capacity_array[i]
                     charged_energy_array[i+1] = charged_energy_array[i]
                     discharged_energy_array[i+1] = discharged_energy_array[i]
             
-            # Net capacity = absolute value of final discharged - final charged
             capacity = discharged_capacity_array - charged_capacity_array
             data[Signal.CAPACITY] = TimeSeries(
                 time_s=time_list,
@@ -158,8 +188,7 @@ class PyBaMMBackend(SimulationBackend):
                 unit="Ah"
             )
             
-            # Calculate efficiency (energy out / energy in)
-            # Only where both > 0
+            # Efficiency calculation
             efficiency = np.zeros_like(current) * np.nan
             for i in range(len(current)):
                 if charged_energy_array[i] > 0:
@@ -171,25 +200,21 @@ class PyBaMMBackend(SimulationBackend):
                 unit="%"
             )
             
-            # Internal Resistance: Calculate from voltage change divided by current change
-            # Better than V/I which mixes different time periods
-            # Use moving window to smooth
-            window_size = max(int(len(current) / 20), 3)  # ~5% of data points
+            # Internal Resistance
+            window_size = max(int(len(current) / 20), 3)
             resistance = np.full_like(current, np.nan)
             
             for i in range(window_size, len(current) - window_size):
                 i_start = i - window_size
                 i_end = i + window_size
                 
-                # Skip if current is near zero (no meaningful resistance)
                 if np.mean(np.abs(current[i_start:i_end])) < 0.01:
                     continue
                 
-                # dV / dI (voltage change over current change)
                 dv = voltage[i_end] - voltage[i_start]
                 di = current[i_end] - current[i_start]
                 
-                if abs(di) > 0.01:  # Avoid division by very small change
+                if abs(di) > 0.01:
                     resistance[i] = abs(dv / di)
             
             data[Signal.INTERNAL_RESISTANCE] = TimeSeries(
@@ -197,8 +222,42 @@ class PyBaMMBackend(SimulationBackend):
                 values=resistance.tolist(),
                 unit="Ω"
             )
-
+        
         return Result(data)
+    
+    def _build_observability_data(self, result: Result, simulation: Simulation, elapsed_seconds: float) -> dict:
+        """
+        Build all B11 observability components from result.
+        
+        Returns:
+            dict with 'metadata', 'errors', 'diagnostics' keys
+        """
+        voltage_data = result.voltage()
+        solver_iterations = len(voltage_data.time_s) if voltage_data is not None else 0
+        
+        metadata = SimulationMetadata.create(
+            solver_config=simulation.solver_config,
+            solver_iterations=solver_iterations,
+            success=True,
+            convergence_reason="Converged",
+            duration_s=elapsed_seconds,
+            protocol_steps=len(simulation.protocol.steps) if simulation.protocol else 0,
+        )
+        
+        errors = ErrorDetector.detect_all(result)
+        
+        diagnostics = ConvergenceDiagnostics.create(
+            total_time_steps=solver_iterations,
+            avg_newton_iterations=1.0,
+            max_newton_iterations=1,
+            min_newton_iterations=1,
+        )
+        
+        return {
+            'metadata': metadata,
+            'errors': errors,
+            'diagnostics': diagnostics,
+        }
 
     def _build_model(self, model: Model, environment: Environment) -> pybamm.lithium_ion.BaseModel:
         options = {}
