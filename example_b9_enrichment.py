@@ -9,6 +9,13 @@ This example demonstrates:
 5. Cycle detection and analysis
 """
 
+import sys
+import numpy as np
+from pathlib import Path
+
+# Add parent directory to path so battery_sim can be imported
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.cell import Cell
 from battery_sim.core.model import Model
@@ -23,9 +30,9 @@ from battery_sim.core.result_analyzer import ResultAnalyzer
 def main():
     # ========== Setup: Define cell, protocol, environment ==========
     
-    # Create a battery cell (using Nickel-Cobalt-Aluminum chemistry - typical EV cell)
+    # Create a battery cell
     cell = Cell(
-        chemistry="NCA",
+        chemistry="NMC",
         nominal_capacity_Ah=5.0,            # 5 Ah cell
         nominal_voltage_V=3.7,               # 3.7V nominal
         electrode_area_m2=0.05,              # 50 cm² electrode area
@@ -37,9 +44,9 @@ def main():
     
     # Create a simple charge-rest-discharge protocol
     protocol = (
-        Protocol([ConstantCurrent(current_A=-1.0, _duration_s=3600)])   # Charge at 1A for 1h
-        + Protocol([Rest(_duration_s=600)])                              # Rest for 10 min
-        + Protocol([ConstantCurrent(current_A=1.0, _duration_s=3600)])   # Discharge at 1A for 1h
+        Protocol.cccv(1, 4.2, 0.01, )
+        + Protocol.rest(600)
+        + Protocol.cc(5.0, 3600)
     )
     
     # Create environment (room temperature)
@@ -95,29 +102,54 @@ def main():
     print("QUICK ANALYSIS - Result Methods")
     print("=" * 70)
     
-    print(f"\nElectrical Metrics:")
-    print(f"  Total Energy:                {result.total_energy():.2f} Wh")
-    print(f"  Total Capacity Delivered:    {result.total_capacity_delivered():.2f} Ah")
-    print(f"  Peak Power:                  {result.peak_power():.1f} W")
-    print(f"  Average Power:               {result.average_power():.1f} W")
+    print(f"\n==== ENERGY METRICS ====")
+    charged_e = result.charged_energy()
+    discharged_e = result.discharged_energy()
+    net_e = result.net_energy()
+    print(f"  Charged Energy (into cell):     {charged_e:8.2f} Wh")
+    print(f"  Discharged Energy (from cell):  {discharged_e:8.2f} Wh")
+    print(f"  Net Energy (discharge - charge):{net_e:8.2f} Wh")
     
-    print(f"\nVoltage Analysis:")
-    print(f"  Min Voltage:                 {result.min_voltage():.3f} V")
-    print(f"  Max Voltage:                 {result.max_voltage():.3f} V")
+    print(f"\n==== CAPACITY METRICS ====")
+    charged_c = result.charged_capacity()
+    discharged_c = result.discharged_capacity()
+    net_c = result.net_capacity()
+    print(f"  Charged Capacity (into cell):     {charged_c:8.3f} Ah")
+    print(f"  Discharged Capacity (from cell):  {discharged_c:8.3f} Ah")
+    print(f"  Net Capacity (discharge - charge):{net_c:8.3f} Ah")
     
-    print(f"\nState of Charge:")
+    print(f"\n==== EFFICIENCY ====")
+    efficiency = result.charge_discharge_efficiency()
+    if efficiency:
+        print(f"  Round-Trip Efficiency:        {efficiency:8.1f} %")
+    
+    print(f"\n==== POWER METRICS ====")
+    print(f"  Peak Power:                   {result.peak_power():8.1f} W")
+    print(f"  Average Power:                {result.average_power():8.1f} W")
+    
+    print(f"\n==== VOLTAGE ====")
+    print(f"  Min Voltage:                  {result.min_voltage():8.3f} V")
+    print(f"  Max Voltage:                  {result.max_voltage():8.3f} V")
+    
+    print(f"\n==== TEMPERATURE ====")
+    min_temp = result.min_temperature()
+    max_temp = result.max_temperature()
+    print(f"  Min Temperature:              {min_temp:8.2f} °C")
+    print(f"  Max Temperature:              {max_temp:8.2f} °C")
+    if min_temp is not None and max_temp is not None:
+        print(f"  ΔT (rise):                    {max_temp - min_temp:8.2f} °C")
+    
+    print(f"\n==== INTERNAL RESISTANCE ====")
+    avg_ir = result.average_internal_resistance()
+    if avg_ir and not np.isnan(avg_ir):
+        print(f"  Average R_internal:           {avg_ir:8.4f} Ω")
+    else:
+        print(f"  Average R_internal:           N/A (insufficient current variation)")
+    
+    print(f"\n==== STATE OF CHARGE ====")
     final_soc = result.final_soc()
     if final_soc:
-        print(f"  Final SOC:                   {final_soc:.1f} %")
-    
-    print(f"\nTemperature Analysis:")
-    print(f"  Min Temperature:             {result.min_temperature():.2f} °C")
-    print(f"  Max Temperature:             {result.max_temperature():.2f} °C")
-    
-    print(f"\nInternal Resistance:")
-    avg_ir = result.average_internal_resistance()
-    if avg_ir:
-        print(f"  Average Internal Resistance: {avg_ir:.4f} Ω")
+        print(f"  Final SOC:                    {final_soc:8.1f} %")
     
     # ========== ADVANCED ANALYSIS USING ResultAnalyzer ==========
     print("\n" + "=" * 70)

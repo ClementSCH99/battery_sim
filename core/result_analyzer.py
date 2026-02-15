@@ -100,8 +100,8 @@ class ResultAnalyzer:
         if soc_ts is None:
             return []
         
-        soc = soc_ts.values
-        time = soc_ts.time_s
+        soc = np.array(soc_ts.values)
+        time = np.array(soc_ts.time_s)
         
         # Detect charging phases (SOC increasing)
         is_charging = np.diff(soc) > 0.0

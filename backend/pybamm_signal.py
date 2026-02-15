@@ -1,11 +1,13 @@
 # battery_sim/backend/pybamm_signal
 from battery_sim.types.signal import Signal
 
+# Map Signal enum to PyBaMM signal names
+# Note: Some signals may have multiple alternative names in PyBaMM
 PYBAMM_SIGNAL_MAP = {
     Signal.TIME: ("Time [s]", "s"),
     Signal.VOLTAGE: ("Terminal voltage [V]", "V"),
     Signal.CURRENT: ("Current [A]", "A"),
-    Signal.SOC: ("State of charge", "-"),
+    Signal.SOC: ("State of charge", "-"),  # Will try alternatives if not found
     Signal.TEMPERATURE: ("Cell temperature [K]", "K"),
     Signal.HEAT_GENERATION: ("Total heat generation [W]", "W"),
     
@@ -14,6 +16,17 @@ PYBAMM_SIGNAL_MAP = {
     Signal.CATHODE_POTENTIAL: ("Positive electrode potential [V]", "V"),
     Signal.OVERPOTENTIAL: ("Overpotential [V]", "V"),
     Signal.ELECTROLYTE_CONCENTRATION: ("Electrolyte concentration [mol.m-3]", "mol.m-3"),
+}
+
+# Alternative PyBaMM signal names for some signals
+# PyBaMM may use different names depending on the model and discharge
+PYBAMM_SIGNAL_ALIASES = {
+    Signal.SOC: [
+        "State of charge",
+        "X-averaged state of charge",
+        "State of charge [1]",
+        "X-averaged state of charge [1]"
+    ]
 }
 
 # Derived signals (calculated, not directly from PyBaMM)

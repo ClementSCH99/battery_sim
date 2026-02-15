@@ -77,28 +77,28 @@ class Result:
         power_ts = self.power()
         if power_ts is None:
             return None
-        return np.max(np.abs(power_ts.values))
+        return float(np.max(np.abs(power_ts.values)))
     
     def average_power(self) -> Optional[float]:
         """Get average power (W)."""
         power_ts = self.power()
         if power_ts is None:
             return None
-        return np.mean(power_ts.values)
+        return float(np.mean(power_ts.values))
     
     def min_voltage(self) -> Optional[float]:
         """Get minimum voltage (V)."""
         voltage_ts = self.voltage()
         if voltage_ts is None:
             return None
-        return np.min(voltage_ts.values)
+        return float(np.min(voltage_ts.values))
     
     def max_voltage(self) -> Optional[float]:
         """Get maximum voltage (V)."""
         voltage_ts = self.voltage()
         if voltage_ts is None:
             return None
-        return np.max(voltage_ts.values)
+        return float(np.max(voltage_ts.values))
     
     def final_soc(self) -> Optional[float]:
         """Get final state of charge (%)."""
@@ -109,14 +109,14 @@ class Result:
         temp_ts = self.temperature()
         if temp_ts is None:
             return None
-        return np.min(temp_ts.values)
+        return float(np.min(temp_ts.values))
     
     def max_temperature(self) -> Optional[float]:
         """Get maximum temperature (°C or K)."""
         temp_ts = self.temperature()
         if temp_ts is None:
             return None
-        return np.max(temp_ts.values)
+        return float(np.max(temp_ts.values))
     
     def internal_resistance(self) -> Optional[TimeSeries]:
         """Get approximate internal resistance over time (Ω)."""
@@ -131,10 +131,11 @@ class Result:
         if ir_ts is None:
             return None
         # Filter out NaN values
-        valid_values = ir_ts.values[~np.isnan(ir_ts.values)]
+        values_array = np.array(ir_ts.values)
+        valid_values = values_array[~np.isnan(values_array)]
         if len(valid_values) == 0:
             return None
-        return np.mean(valid_values)
+        return float(np.mean(valid_values))
     
     def round_trip_efficiency(self) -> Optional[float]:
         """
@@ -143,14 +144,11 @@ class Result:
         
         Returns None if data insufficient.
         """
-        if Signal.ENERGY not in self._data or Signal.POWER not in self._data:
-            return None
-        
         energy_ts = self.energy()
         power_ts = self.power()
         voltage_ts = self.voltage()
         
-        if not all([energy_ts, power_ts, voltage_ts]):
+        if energy_ts is None or power_ts is None or voltage_ts is None:
             return None
         
         # Separates charge and discharge phases based on current/power
@@ -167,6 +165,118 @@ class Result:
             return (discharge_energy / charge_energy) * 100.0
         return None
     
+    def charged_capacity(self) -> Optional[float]:
+        """
+        Get total charge capacity delivered into battery (Ah).
+        Integrates negative current (charging phases).
+        """
+        current_ts = self.current()
+        if current_ts is None:
+            return None
+        
+        current = np.array(current_ts.values)
+        time = np.array(current_ts.time_s)
+        dt = np.diff(time)
+        
+        # Sum negative currents (charging): I < 0
+        charged_increments = np.where(current[:-1] < 0, np.abs(current[:-1]) * dt / 3600.0, 0)
+        return float(np.sum(charged_increments))
+    
+    def discharged_capacity(self) -> Optional[float]:
+        """
+        Get total discharge capacity delivered from battery (Ah).
+        Integrates positive current (discharging phases).
+        """
+        current_ts = self.current()
+        if current_ts is None:
+            return None
+        
+        current = np.array(current_ts.values)
+        time = np.array(current_ts.time_s)
+        dt = np.diff(time)
+        
+        # Sum positive currents (discharging): I > 0
+        discharged_increments = np.where(current[:-1] > 0, current[:-1] * dt / 3600.0, 0)
+        return float(np.sum(discharged_increments))
+    
+    def net_capacity(self) -> Optional[float]:
+        """
+        Get net capacity (discharged - charged) (Ah).
+        Positive means more discharged than charged (net discharge).
+        """
+        discharged = self.discharged_capacity()
+        charged = self.charged_capacity()
+        
+        if discharged is None or charged is None:
+            return None
+        return discharged - charged
+    
+    def charged_energy(self) -> Optional[float]:
+        """
+        Get total energy charged into battery (Wh).
+        Integrates power during charging phases (negative current).
+        """
+        current_ts = self.current()
+        voltage_ts = self.voltage()
+        
+        if current_ts is None or voltage_ts is None:
+            return None
+        
+        current = np.array(current_ts.values)
+        voltage = np.array(voltage_ts.values)
+        time = np.array(current_ts.time_s)
+        dt = np.diff(time)
+        
+        # Sum energy during charging (I < 0): E_in = |V * I * dt|
+        power = voltage[:-1] * current[:-1]
+        charged_increments = np.where(current[:-1] < 0, np.abs(power) * dt / 3600.0, 0)
+        return float(np.sum(charged_increments))
+    
+    def discharged_energy(self) -> Optional[float]:
+        """
+        Get total energy discharged from battery (Wh).
+        Integrates power during discharging phases (positive current).
+        """
+        current_ts = self.current()
+        voltage_ts = self.voltage()
+        
+        if current_ts is None or voltage_ts is None:
+            return None
+        
+        current = np.array(current_ts.values)
+        voltage = np.array(voltage_ts.values)
+        time = np.array(current_ts.time_s)
+        dt = np.diff(time)
+        
+        # Sum energy during discharging (I > 0): E_out = V * I * dt
+        power = voltage[:-1] * current[:-1]
+        discharged_increments = np.where(current[:-1] > 0, power * dt / 3600.0, 0)
+        return float(np.sum(discharged_increments))
+    
+    def net_energy(self) -> Optional[float]:
+        """
+        Get net energy (discharged - charged) (Wh).
+        Positive means more energy was output than input (net discharge).
+        """
+        discharged = self.discharged_energy()
+        charged = self.charged_energy()
+        
+        if discharged is None or charged is None:
+            return None
+        return discharged - charged
+    
+    def charge_discharge_efficiency(self) -> Optional[float]:
+        """
+        Get charge-discharge round-trip efficiency (%).
+        Calculated as: (energy_discharged / energy_charged) * 100
+        """
+        charged_e = self.charged_energy()
+        discharged_e = self.discharged_energy()
+        
+        if charged_e is None or discharged_e is None or charged_e <= 0:
+            return None
+        return (discharged_e / charged_e) * 100.0
+    
     def state_variables_summary(self) -> Dict[Signal, Dict[str, float]]:
         """
         Get summary of all available state variables.
@@ -174,9 +284,10 @@ class Result:
         """
         summary = {}
         for signal, ts in self._data.items():
-            if ts.values.size > 0:
-                valid = ts.values[~np.isnan(ts.values)]
-                if valid.size > 0:
+            values_array = np.array(ts.values)
+            if len(values_array) > 0:
+                valid = values_array[~np.isnan(values_array)]
+                if len(valid) > 0:
                     summary[signal] = {
                         'min': float(np.min(valid)),
                         'mean': float(np.mean(valid)),
@@ -187,26 +298,107 @@ class Result:
     
     # ============ Plotting ============
     
-    def plot(self, names: Optional[List[Signal]] = None):
-        """Plot selected or all signals."""
+    def plot(self, names: Optional[List[Signal]] = None, figsize: tuple = (14, 10), save_path: str = "battery_simulation.png"):
+        """
+        Plot selected or all signals with improved formatting.
+        
+        Args:
+            names: List of signals to plot. If None, plots all available signals.
+            figsize: Matplotlib figure size (width, height)
+            save_path: Path to save the figure (default: battery_simulation.png)
+        """
         import matplotlib.pyplot as plt
-
+        
         if names is None:
             names = self.available_signals()
-
-        for name in names:
-            if name not in self._data:
-                raise KeyError(f"Signal '{name}' not found")
-            
-            ts = self._data[name]
-            plt.plot(ts.time_s, ts.values, label=f"{name.value} ({ts.unit})")
         
-        plt.xlabel("Time [s]")
-        plt.ylabel("Value")
-        plt.grid(True)
+        # Filter out invalid signals
+        valid_names = [n for n in names if n in self._data]
+        
+        if not valid_names:
+            raise ValueError(f"No valid signals to plot. Available: {[s.value for s in self.available_signals()]}")
+        
+        # Create subplots - arrange in grid
+        num_plots = len(valid_names)
+        num_cols = 2
+        num_rows = (num_plots + num_cols - 1) // num_cols
+        
+        fig, axes = plt.subplots(num_rows, num_cols, figsize=figsize)
+        fig.suptitle("Battery Simulation Results", fontsize=16, fontweight='bold')
+        
+        # Flatten axes array if only one row
+        if num_rows == 1:
+            axes = axes.reshape(1, -1)
+        axes = axes.flatten()
+        
+        for idx, signal in enumerate(valid_names):
+            ax = axes[idx]
+            ts = self._data[signal]
+            
+            # Plot with enhanced styling
+            ax.plot(ts.time_s, ts.values, linewidth=2.0, color=f'C{idx}')
+            ax.grid(True, alpha=0.3, linestyle='--')
+            ax.set_xlabel("Time [s]", fontsize=10)
+            ax.set_ylabel(f"{signal.value.replace('_', ' ').title()} [{ts.unit}]", fontsize=10)
+            ax.set_title(f"{signal.value.replace('_', ' ').title()}", fontsize=11, fontweight='bold')
+            
+            # Add min/max annotations
+            values_array = np.array(ts.values)
+            valid = values_array[~np.isnan(values_array)]
+            if len(valid) > 0:
+                min_val, max_val = np.min(valid), np.max(valid)
+                min_idx = np.nanargmin(values_array)
+                max_idx = np.nanargmax(values_array)
+                
+                ax.annotate(f'Min: {min_val:.2f}', 
+                           xy=(ts.time_s[min_idx], values_array[min_idx]),
+                           xytext=(5, -15), textcoords='offset points',
+                           fontsize=8, color='red',
+                           bbox=dict(boxstyle='round,pad=0.3', facecolor='yellow', alpha=0.5))
+                ax.annotate(f'Max: {max_val:.2f}',
+                           xy=(ts.time_s[max_idx], values_array[max_idx]),
+                           xytext=(5, 5), textcoords='offset points',
+                           fontsize=8, color='green',
+                           bbox=dict(boxstyle='round,pad=0.3', facecolor='lightgreen', alpha=0.5))
+        
+        # Hide extra subplots
+        for idx in range(num_plots, len(axes)):
+            axes[idx].axis('off')
+        
         plt.tight_layout()
-        plt.legend()
-        plt.savefig("fig.jpeg")
+        plt.savefig(save_path, dpi=100, bbox_inches='tight')
+        print(f"✓ Plot saved to {save_path}")
+        
+    def plot_single(self, signal: Signal, figsize: tuple = (10, 6), save_path: Optional[str] = None):
+        """
+        Plot a single signal with detailed formatting.
+        
+        Args:
+            signal: Signal to plot
+            figsize: Figure size
+            save_path: Path to save (optional)
+        """
+        import matplotlib.pyplot as plt
+        
+        if signal not in self._data:
+            raise KeyError(f"Signal '{signal.value}' not found")
+        
+        ts = self._data[signal]
+        fig, ax = plt.subplots(figsize=figsize)
+        
+        ax.plot(ts.time_s, ts.values, linewidth=2.5, marker='o', markersize=3, label=signal.value)
+        ax.grid(True, alpha=0.3, linestyle='--')
+        ax.set_xlabel("Time [s]", fontsize=12)
+        ax.set_ylabel(f"{signal.value.replace('_', ' ').title()} [{ts.unit}]", fontsize=12)
+        ax.set_title(f"{signal.value.replace('_', ' ').title()} Over Time", fontsize=14, fontweight='bold')
+        ax.legend(fontsize=10)
+        
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=100, bbox_inches='tight')
+            print(f"✓ Plot saved to {save_path}")
+        else:
+            plt.show()
         
     def __repr__(self) -> str:
         """String representation with summary stats."""
