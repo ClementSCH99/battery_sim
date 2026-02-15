@@ -3,10 +3,29 @@
 from enum import Enum
 
 class Signal(Enum):
+    # Primary electrical signals
     TIME = "time"
     VOLTAGE = "voltage"
     CURRENT = "current"
-    SOC = "soc"
-    TEMPERATURE = "temperature"
     POWER = "power"
+    ENERGY = "energy"
+    
+    # Battery state signals
+    SOC = "soc"
+    SOH = "soh"
+    CAPACITY = "capacity"
+    CAPACITY_FADE = "capacity_fade"
+    
+    # Thermal signals
+    TEMPERATURE = "temperature"
     HEAT_GENERATION = "heat_generation"
+    
+    # Internal states (for DFN model)
+    ANODE_POTENTIAL = "anode_potential"
+    CATHODE_POTENTIAL = "cathode_potential"
+    OVERPOTENTIAL = "overpotential"
+    ELECTROLYTE_CONCENTRATION = "electrolyte_concentration"
+    
+    # Performance metrics
+    INTERNAL_RESISTANCE = "internal_resistance"
+    EFFICIENCY = "efficiency"

@@ -1,9 +1,10 @@
 # battery_sim/backend/pybamm_backend.py
 import pybamm
+import numpy as np
 from typing import Type
 
 from battery_sim.backend.base import SimulationBackend
-from battery_sim.backend.pybamm_signal import PYBAMM_SIGNAL_MAP
+from battery_sim.backend.pybamm_signal import PYBAMM_SIGNAL_MAP, DERIVED_SIGNALS
 from battery_sim.core.cell import Cell
 from battery_sim.core.environment import Environment
 from battery_sim.core.model import Model
@@ -36,27 +37,82 @@ class PyBaMMBackend(SimulationBackend):
              **kwargs
         )
 
-        solution = sim.solve(
-             initial_soc=1
-        )
+        solution = sim.solve(initial_soc=1)
 
         data = {}
         time = solution["Time [s]"].data
+        time_list = time.tolist() if hasattr(time, 'tolist') else list(time)
+        
+        # Extract primary signals from PyBaMM
         for signal, (pybamm_name, unit) in PYBAMM_SIGNAL_MAP.items():
-
-            values = solution[pybamm_name].data
-
-            if signal == Signal.SOC:
-                values = values * 100.0
-
-            if signal == Signal.TEMPERATURE:
-                values = values - 273.15
-                unit = "C"
+            try:
+                values = solution[pybamm_name].data
+                values_list = values.tolist() if hasattr(values, 'tolist') else list(values)
+                
+                # Unit conversions
+                if signal == Signal.SOC:
+                    if np.max(values) <= 1.0:  # If in [0,1], convert to percentage
+                        values = values * 100.0
+                    unit = "%"
+                
+                if signal == Signal.TEMPERATURE:
+                    values = values - 273.15
+                    unit = "°C"
+                
+                values_list = values.tolist() if hasattr(values, 'tolist') else list(values)
+                data[signal] = TimeSeries(
+                    time_s=time_list,
+                    values=values_list,
+                    unit=unit
+                )
+            except KeyError:
+                # Signal not available in this model
+                pass
+        
+        # Compute derived signals
+        if Signal.VOLTAGE in data and Signal.CURRENT in data:
+            voltage = np.array(data[Signal.VOLTAGE].values)
+            current = np.array(data[Signal.CURRENT].values)
             
-            data[signal] = TimeSeries(
-                time_s=time,
-                values=values,
-                unit=unit
+            # Power = V * I
+            power = voltage * current
+            data[Signal.POWER] = TimeSeries(
+                time_s=time_list,
+                values=power.tolist(),
+                unit="W"
+            )
+            
+            # Energy = integral of power (trapz rule)
+            time_array = np.array(time_list)
+            dt = np.diff(time_array)
+            energy_increments = power[:-1] * dt / 3600.0  # Convert W*s to Wh
+            energy = np.concatenate(([0], np.cumsum(energy_increments)))
+            data[Signal.ENERGY] = TimeSeries(
+                time_s=time_list,
+                values=energy.tolist(),
+                unit="Wh"
+            )
+            
+            # Capacity = integral of abs(current) (for charge/discharge tracking)
+            capacity_increments = np.abs(current[:-1]) * dt / 3600.0  # Convert A*s to Ah
+            capacity = np.concatenate(([0], np.cumsum(capacity_increments)))
+            data[Signal.CAPACITY] = TimeSeries(
+                time_s=time_list,
+                values=capacity.tolist(),
+                unit="Ah"
+            )
+            
+            # Internal Resistance approximation = V / I (avoid division by near-zero)
+            with np.errstate(divide='ignore', invalid='ignore'):
+                resistance = np.where(
+                    np.abs(current) > 1e-3,
+                    voltage / current,
+                    np.nan
+                )
+            data[Signal.INTERNAL_RESISTANCE] = TimeSeries(
+                time_s=time_list,
+                values=resistance.tolist(),
+                unit="Ω"
             )
 
         return Result(data)
