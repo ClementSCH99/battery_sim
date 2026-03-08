@@ -103,7 +103,7 @@ class Protocol:
                     )
                 if not step.cutoff_voltage_V:
                     raise ProtocolValidationError(
-                        f"CC_CV step at index {i}: cutoff voltage must be greater than 0A - Protocol not valide"
+                        f"CC_CV step at index {i}: cutoff voltage must exist - Protocol not valide"
                     )
                 if not step.taper_current_A > 0:
                     raise ProtocolValidationError(
