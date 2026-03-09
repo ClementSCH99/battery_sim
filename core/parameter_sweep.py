@@ -129,7 +129,7 @@ class ParameterSweep:
             )
             
             if verbose:
-                print("✓")
+                print("Done")
         
         return sweep_results
 
@@ -189,7 +189,7 @@ class ParameterSweep:
             )
             
             if verbose:
-                print("✓")
+                print("Done")
         
         return sweep_results
 
@@ -304,7 +304,7 @@ class ParameterSweep:
                 )
                 
                 if verbose:
-                    print("✓")
+                    print("Done")
         
         return results
 

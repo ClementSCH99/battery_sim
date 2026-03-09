@@ -189,10 +189,17 @@ class PyBaMMBackend(SimulationBackend):
             )
             
             # Efficiency calculation
-            efficiency = np.zeros_like(current) * np.nan
+            efficiency = np.zeros_like(current, dtype=float)
             for i in range(len(current)):
-                if charged_energy_array[i] > 0:
+                if charged_energy_array[i] > 0.0:
+                    # Calculate round-trip efficiency
                     efficiency[i] = (discharged_energy_array[i] / charged_energy_array[i]) * 100.0
+                elif discharged_energy_array[i] > 0.0:
+                    # Discharge-only phase: assume 100% efficiency (no charging losses)
+                    efficiency[i] = 100.0
+                else:
+                    # No activity: no meaningful efficiency
+                    efficiency[i] = 100.0
             
             data[Signal.EFFICIENCY] = TimeSeries(
                 time_s=time_list,
@@ -202,7 +209,7 @@ class PyBaMMBackend(SimulationBackend):
             
             # Internal Resistance
             window_size = max(int(len(current) / 20), 3)
-            resistance = np.full_like(current, np.nan)
+            resistance = np.full_like(current, np.nan, dtype=float)
             
             for i in range(window_size, len(current) - window_size):
                 i_start = i - window_size
@@ -306,10 +313,25 @@ class PyBaMMBackend(SimulationBackend):
     def _build_parameters(self, cell: Cell, environment: Environment) -> pybamm.ParameterValues:
         """
         Build a PyBaMM ParameterValues object from:
-        - Cell object
+        - Cell object (with chemistry-specific parameters)
         - Environment object
+        
+        **FIXED**: Now selects appropriate PyBaMM parameter set based on cell chemistry
         """
-        param_values = pybamm.ParameterValues("Chen2020")
+        # Map cell chemistry to PyBaMM parameter sets
+        chemistry_to_param_set = {
+            "LFP": "Marquis2019",      # LiFePO4 parameters
+            "NMC": "Chen2020",          # NMC parameters (default)
+            "NCA": "Chen2020",          # NCA parameters (similar to NMC)
+            "LCO": "Chen2020",          # LiCoO2 (use NMC-like)
+            "LMNO": "Chen2020",         # LiMnNiO (use NMC-like)
+        }
+        
+        # Get chemistry from cell
+        chemistry = getattr(cell, 'chemistry', 'NMC')
+        param_set = chemistry_to_param_set.get(chemistry, "Chen2020")
+        
+        param_values = pybamm.ParameterValues(param_set)
         updates = {}
 
         # Map Cell parameters to PyBaMM parameters

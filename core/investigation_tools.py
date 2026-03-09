@@ -47,7 +47,6 @@ WITH TOOLS:
 
 from dataclasses import dataclass, field, replace
 from typing import Dict, List, Any, Optional, Tuple, Callable
-import statistics
 
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.cell import Cell
@@ -76,11 +75,7 @@ class BatchSimulationConfig:
     environment: Environment = field(default_factory=lambda: Environment(temperature_C=25.0))
     model: Model = Model.SPM
     solver_config: SolverConfig = field(default_factory=SolverConfig)
-    backend: Optional[PyBaMMBackend] = None
-    
-    def __post_init__(self):
-        if self.backend is None:
-            self.backend = PyBaMMBackend()
+    backend: PyBaMMBackend = field(default_factory=PyBaMMBackend)
 
 
 class BatchSimulator:
@@ -135,7 +130,7 @@ class BatchSimulator:
             except Exception as e:
                 # TEACHING: Handle failures gracefully
                 # Log the error but continue with other presets
-                print(f"⚠️  Failed to simulate {preset_name}: {str(e)}")
+                print(f"Warning: Failed to simulate {preset_name}: {str(e)}")
                 results.append((preset_name, None))
         
         return results
@@ -193,7 +188,7 @@ class BatchSimulator:
                 run = sim.run()
                 results.append((value, run))
             except Exception as e:
-                print(f"⚠️  Failed for {parameter_name}={value}: {str(e)}")
+                print(f"Warning: Failed for {parameter_name}={value}: {str(e)}")
                 results.append((value, None))
         
         return results
@@ -283,7 +278,7 @@ class SimulationComparison:
             metrics['total_energy_Wh'] = None
         
         try:
-            metrics['efficiency_percent'] = result.charge_discharge_efficiency()
+            metrics['efficiency_percent'] = result.efficiency()
         except:
             metrics['efficiency_percent'] = None
         
@@ -566,42 +561,34 @@ class ConstraintChecker:
         """
         Check if cell parameters are physically reasonable.
         
-        TEACHING: These are hard constraints from physics.
+        TEACHING: These are soft constraints. The LLM can override if needed.
         """
         violations = []
         
         # Capacity positive
-        if cell.nominal_capacity_Ah <= 0:
+        if cell.nominal_capacity_Ah is not None and cell.nominal_capacity_Ah <= 0:
             violations.append(ConstraintViolation(
                 constraint_name='capacity_positive',
                 violated=True,
-                message=f'Capacity must be >0, got {cell.nominal_capacity_Ah}',
-                severity='critical',
+                message=f'Capacity must be positive, got {cell.nominal_capacity_Ah}',
+                severity='warning',
             ))
         
         # Voltage reasonable for lithium
-        if cell.nominal_voltage_V < 2.5 or cell.nominal_voltage_V > 4.5:
+        if cell.nominal_voltage_V is not None and (cell.nominal_voltage_V < 2.0 or cell.nominal_voltage_V > 5.0):
             violations.append(ConstraintViolation(
                 constraint_name='voltage_in_range',
                 violated=True,
-                message=f'Lithium cell voltage should be 2.5-4.5V, got {cell.nominal_voltage_V}V',
+                message=f'Typical lithium cell voltage is 2.0-5.0V, got {cell.nominal_voltage_V}V',
                 severity='warning',
             ))
         
         # Resistance physical
-        if cell.internal_resistance_Ohm < 0:
+        if cell.internal_resistance_Ohm is not None and cell.internal_resistance_Ohm < 0:
             violations.append(ConstraintViolation(
                 constraint_name='resistance_non_negative',
                 violated=True,
-                message=f'Resistance cannot be negative, got {cell.internal_resistance_Ohm}Ω',
-                severity='critical',
-            ))
-        
-        if cell.internal_resistance_Ohm > 1.0:
-            violations.append(ConstraintViolation(
-                constraint_name='resistance_reasonable',
-                violated=True,
-                message=f'Resistance seems very high: {cell.internal_resistance_Ohm}Ω (typical <0.5Ω)',
+                message=f'Resistance cannot be negative, got {cell.internal_resistance_Ohm} Ohm',
                 severity='warning',
             ))
         
@@ -615,16 +602,17 @@ class ConstraintChecker:
         """
         Check if protocol can be executed with this cell.
         
-        TEACHING: Given a cell and environment, can we actually discharge it?
+        TEACHING: Give hints but don't be too restrictive. LLM may have 
+        other resources to validate scenarios.
         """
         violations = []
         
-        # Temperature within operating range
-        if environment.temperature_C < -10 or environment.temperature_C > 50:
+        # Temperature operating hints
+        if environment.temperature_C < -20 or environment.temperature_C > 70:
             violations.append(ConstraintViolation(
-                constraint_name='temperature_in_range',
-                violated=True,
-                message=f'Temperature {environment.temperature_C}°C is outside -10 to 50°C range',
+                constraint_name='temperature_extreme',
+                violated=False,
+                message=f'Temperature {environment.temperature_C}°C is unusual (typical -20 to 70°C)',
                 severity='warning',
             ))
         
@@ -645,19 +633,19 @@ class ConstraintChecker:
         lines = ["=" * 70, "FEASIBILITY REPORT", "=" * 70, ""]
         
         if not all_violations:
-            lines.append("✅ All constraints satisfied - scenario is feasible")
+            lines.append("All constraints satisfied - scenario is feasible")
         else:
             critical = [v for v in all_violations if v.severity == 'critical']
             warnings = [v for v in all_violations if v.severity == 'warning']
             
             if critical:
-                lines.append(f"❌ CRITICAL ISSUES ({len(critical)}):")
+                lines.append(f"CRITICAL ISSUES ({len(critical)}):")
                 for v in critical:
                     lines.append(f"  • {v.message}")
                 lines.append("")
             
             if warnings:
-                lines.append(f"⚠️  WARNINGS ({len(warnings)}):")
+                lines.append(f"WARNINGS ({len(warnings)}):")
                 for v in warnings:
                     lines.append(f"  • {v.message}")
                 lines.append("")

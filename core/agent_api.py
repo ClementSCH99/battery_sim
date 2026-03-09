@@ -281,9 +281,9 @@ class AgentAPI:
             },
             markdown_text="\n".join(md_lines),
             interpretation_hints=[
-                "Start with compare_presets to understand chemistry choices",
-                "Use sensitivity_analysis to learn which parameters matter",
-                "Check feasibility for any unusual conditions",
+                "Start with exploration to understand available options",
+                "Use comparison to evaluate trade-offs",
+                "Analyze sensitivity to understand parameter impacts",
             ],
         )
     
@@ -332,9 +332,9 @@ class AgentAPI:
             json_data=json_data,
             markdown_text=markdown,
             interpretation_hints=[
-                "LFP: safe, long cycle life, lower power",
-                "NMC: balanced performance for most applications",
-                "NCA: highest energy density, shorter life",
+                "Different chemistries show different trade-offs",
+                "Compare metrics across scenarios to identify patterns",
+                "Consider which metrics matter most for your application",
             ],
         )
     
@@ -459,12 +459,21 @@ class AgentAPI:
             if param not in parameter_ranges:
                 continue
             
+            # Create metric extractor
+            def make_metric_extractor(run):
+                if run and hasattr(run, 'result'):
+                    try:
+                        return float(run.result.peak_power() or 0)
+                    except:
+                        return 0.0
+                return 0.0
+            
             result = SensitivityAnalyzer.analyze_single_parameter(
                 baseline_cell,
                 param,
                 parameter_ranges[param],
                 config,
-                metric_extractor=lambda r: r.result.peak_power() if r else None,
+                metric_extractor=make_metric_extractor,
             )
             sensitivity_results.append(result)
         
@@ -535,8 +544,8 @@ class AgentAPI:
             json_data=json_data,
             markdown_text=markdown,
             interpretation_hints=[
-                "Critical violations make the scenario infeasible",
-                "Warnings indicate unusual but possibly acceptable conditions",
+                "Review reported violations and constraints",
+                "Consider if alternative parameters might improve feasibility",
             ],
         )
     

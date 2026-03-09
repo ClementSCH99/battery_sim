@@ -370,7 +370,7 @@ class SimulationSession:
         """
         with open(filepath, 'w') as f:
             f.write(self.to_json_string())
-        print(f"✅ Session saved to {filepath}")
+        print(f"Session saved to {filepath}")
     
     @staticmethod
     def load_from_file(filepath: str) -> "SimulationSession":

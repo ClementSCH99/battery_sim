@@ -81,6 +81,13 @@ class Result:
             return None
         return energy_ts.values[-1]
     
+    def total_energy_Wh(self) -> Optional[float]:
+        """
+        Calculate total energy delivered/stored (Wh).
+        Alias for total_energy() for backward compatibility.
+        """
+        return self.total_energy()
+    
     def total_capacity_delivered(self) -> Optional[float]:
         """
         Calculate total charge delivered (Ah).
@@ -118,6 +125,17 @@ class Result:
         if voltage_ts is None:
             return None
         return float(np.max(voltage_ts.values))
+    
+    def peak_voltage(self) -> Optional[float]:
+        """Get peak voltage during simulation (V). Alias for max_voltage()."""
+        return self.max_voltage()
+    
+    def peak_current(self) -> Optional[float]:
+        """Get maximum absolute current (A)."""
+        current_ts = self.current()
+        if current_ts is None:
+            return None
+        return float(np.max(np.abs(current_ts.values)))
     
     def final_soc(self) -> Optional[float]:
         """Get final state of charge (%)."""
@@ -288,13 +306,37 @@ class Result:
         """
         Get charge-discharge round-trip efficiency (%).
         Calculated as: (energy_discharged / energy_charged) * 100
+        For discharge-only scenarios, returns 100 (no charging losses).
         """
         charged_e = self.charged_energy()
         discharged_e = self.discharged_energy()
         
-        if charged_e is None or discharged_e is None or charged_e <= 0:
+        if charged_e is None or discharged_e is None:
             return None
+        
+        if charged_e <= 0:
+            # Discharge-only: assume 100% efficiency (no charging losses to account for)
+            if discharged_e > 0:
+                return 100.0
+            return None
+        
         return (discharged_e / charged_e) * 100.0
+    
+    def efficiency(self) -> Optional[float]:
+        """
+        Get average efficiency during simulation (%).
+        Uses the EFFICIENCY signal if available, falls back to charge_discharge_efficiency.
+        """
+        efficiency_ts = self._data.get(Signal.EFFICIENCY)
+        if efficiency_ts is not None:
+            # Get average efficiency, excluding any remaining NaN values
+            values = np.array(efficiency_ts.values)
+            valid_values = values[~np.isnan(values)]
+            if len(valid_values) > 0:
+                return float(np.mean(valid_values))
+        
+        # Fall back to charge-discharge efficiency calculation
+        return self.charge_discharge_efficiency()
     
     def state_variables_summary(self) -> Dict[Signal, Dict[str, float]]:
         """

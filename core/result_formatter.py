@@ -431,7 +431,7 @@ class InsightExtractor:
                 scenario_scores[best] = scenario_scores.get(best, 0) + 1
         
         if scenario_scores:
-            best_overall = max(scenario_scores, key=scenario_scores.get)
+            best_overall = max(scenario_scores, key=lambda s: scenario_scores[s])
             if scenario_scores[best_overall] > 1:
                 insights.append(
                     f"{best_overall} dominates: best at {scenario_scores[best_overall]} metrics"

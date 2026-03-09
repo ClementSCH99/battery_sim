@@ -48,8 +48,6 @@ The LLM can now reason about what's possible.
 
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Any, Optional
-from enum import Enum
-import json
 
 from battery_sim.core.cell_presets import CellPresets, CellPreset
 
@@ -279,7 +277,7 @@ class SignalCatalog:
         ]
         
         for sig_def in signals:
-            lines.append(f"📊 {sig_def.signal.name} ({sig_def.signal.unit})")
+            lines.append(f"{sig_def.signal_name} ({sig_def.unit})")
             lines.append(f"   {sig_def.interpretation}")
             if sig_def.typical_range:
                 lines.append(f"   Typical range: {sig_def.typical_range}")
@@ -356,11 +354,11 @@ class PresetCatalog:
         ]
         
         for name, preset in sorted(presets.items()):
-            lines.append(f"🔋 {name}")
+            lines.append(f"{name}")
             lines.append(f"   {preset.description}")
             lines.append(f"   Capacity: {preset.cell.nominal_capacity_Ah} Ah")
             lines.append(f"   Voltage: {preset.cell.nominal_voltage_V} V")
-            lines.append(f"   IR: {preset.cell.internal_resistance_Ohm} Ω")
+            lines.append(f"   IR: {preset.cell.internal_resistance_Ohm} Ohm")
             lines.append("")
         
         return "\n".join(lines)
