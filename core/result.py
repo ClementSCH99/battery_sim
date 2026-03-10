@@ -5,10 +5,13 @@ from battery_sim.types.timeseries import TimeSeries
 from battery_sim.types.signal import Signal
 
 class Result:
+    """Signal payload embedded in SimulationRun for a completed simulation."""
+
     def __init__(self, data: Dict[Signal, TimeSeries], parameter_override: Optional["Any"] = None):
         self._data = data
         # parameter_override is of type ParameterOverride from core.parameter_sweep
-        # Using Any to avoid circular imports
+        # Using Any to avoid circular imports. Result is payload data, not the
+        # canonical public return type of simulation execution.
         self.parameter_override = parameter_override
 
     def get(self, signal: Signal) -> TimeSeries:

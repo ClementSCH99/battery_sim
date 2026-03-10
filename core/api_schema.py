@@ -25,7 +25,8 @@ EXAMPLE: The difference between good and bad introspection
 
 BAD (forces LLM to guess):
     sim = Simulation(cell, model, protocol, environment, backend)
-    result = sim.run()
+    run = sim.run()
+    result = run.result
     # What parameters could I vary? Unknown. What signals are available? Unclear.
 
 GOOD (self-documenting):
@@ -37,19 +38,24 @@ GOOD (self-documenting):
     
     # What signals are available?
     signals = schema.get_signals()
-    # Returns: [Signal(name='voltage_V', description='...', unit='V'), ...]
+    # Returns: [Signal(name='voltage', description='...', unit='V'), ...]
     
     # What presets exist?
     presets = schema.get_presets()
     # Returns: [Preset(name='LFP_5AH', chemistry='LFP', ...), ...]
 
 The LLM can now reason about what's possible.
+
+Introspection should mirror the runtime contract: sim.run() returns
+SimulationRun, and the signal payload is exposed under run.result using the
+canonical runtime signal vocabulary (`voltage`, `current`, `soc`, etc.).
 """
 
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Any, Optional
 
 from battery_sim.core.cell_presets import CellPresets, CellPreset
+from battery_sim.types.signal import Signal
 
 
 # ============================================================================
@@ -209,12 +215,14 @@ class SignalDefinition:
         interpretation: What does this signal tell us?
         use_cases: Why would someone care about this?
         typical_range: What are typical values?
+        aliases: Legacy or alternate names that resolve to the same canonical signal.
     """
     signal_name: str
     unit: str
     interpretation: str
     use_cases: List[str]
     typical_range: Optional[str] = None
+    aliases: List[str] = field(default_factory=list)
     
     def to_dict(self) -> Dict[str, Any]:
         """JSON serialization."""
@@ -224,6 +232,7 @@ class SignalDefinition:
             'interpretation': self.interpretation,
             'use_cases': self.use_cases,
             'typical_range': self.typical_range,
+            'aliases': self.aliases,
         }
 
 
@@ -240,7 +249,14 @@ class SignalCatalog:
     
     def get_signal(self, name: str) -> Optional[SignalDefinition]:
         """Get metadata for a specific signal."""
-        return self.signals.get(name)
+        signal = self.signals.get(name)
+        if signal is not None:
+            return signal
+
+        for candidate in self.signals.values():
+            if name in candidate.aliases:
+                return candidate
+        return None
     
     def list_signals(self) -> List[SignalDefinition]:
         """Get all available signals."""
@@ -330,8 +346,8 @@ class PresetCatalog:
                     'chemistry': preset.chemistry,
                     'description': preset.description,
                     'capacity_Ah': preset.cell.nominal_capacity_Ah,
-                    'voltage_V': preset.cell.nominal_voltage_V,
-                    'ir_Ohm': preset.cell.internal_resistance_Ohm,
+                    'nominal_voltage_V': preset.cell.nominal_voltage_V,
+                    'internal_resistance_Ohm': preset.cell.internal_resistance_Ohm,
                 }
                 for name, preset in self.presets.items()
             }
@@ -357,8 +373,8 @@ class PresetCatalog:
             lines.append(f"{name}")
             lines.append(f"   {preset.description}")
             lines.append(f"   Capacity: {preset.cell.nominal_capacity_Ah} Ah")
-            lines.append(f"   Voltage: {preset.cell.nominal_voltage_V} V")
-            lines.append(f"   IR: {preset.cell.internal_resistance_Ohm} Ohm")
+            lines.append(f"   Nominal voltage: {preset.cell.nominal_voltage_V} V")
+            lines.append(f"   Internal resistance: {preset.cell.internal_resistance_Ohm} Ohm")
             lines.append("")
         
         return "\n".join(lines)
@@ -447,7 +463,7 @@ class APISchema:
                 name='temperature_C',
                 type='float',
                 unit='°C',
-                description='Ambient temperature. Affects efficiency, voltage, and cycle life.',
+                description='Ambient temperature around the cell. Canonical environment thermal input.',
                 min_value=-20.0,
                 max_value=60.0,
                 default_value=25.0,
@@ -478,114 +494,161 @@ class APISchema:
         )
     
     def _build_signal_catalog(self) -> SignalCatalog:
-        """Build catalog of available signals from B9 Result enrichment."""
-        # TEACHING: These signals come from B9. We're just documenting them here.
+        """Build catalog of signals exposed through the canonical SimulationRun payload."""
+        # TEACHING: These signals are exposed via SimulationRun.result.
         
         signals_data = {
-            # Physical measurements
-            'voltage_V': SignalDefinition(
-                signal_name='voltage_V',
+            # Canonical runtime time-series signals
+            Signal.TIME.value: SignalDefinition(
+                signal_name=Signal.TIME.value,
+                unit='s',
+                interpretation='Simulation time axis shared by all time-series signals.',
+                use_cases=['plotting', 'alignment', 'transient_analysis'],
+                typical_range='Starts at 0 s and increases monotonically',
+            ),
+            Signal.VOLTAGE.value: SignalDefinition(
+                signal_name=Signal.VOLTAGE.value,
                 unit='V',
                 interpretation='Cell terminal voltage. Decreases as battery discharges.',
                 use_cases=['safety_monitoring', 'efficiency_analysis', 'protocol_feasibility'],
                 typical_range='2.5V - 4.2V for lithium cells',
+                aliases=['voltage_V'],
             ),
-            'current_A': SignalDefinition(
-                signal_name='current_A',
+            Signal.CURRENT.value: SignalDefinition(
+                signal_name=Signal.CURRENT.value,
                 unit='A',
                 interpretation='Discharge current (positive) or charge current (negative).',
                 use_cases=['power_analysis', 'safety_monitoring', 'thermal_analysis'],
                 typical_range='Positive during discharge, proportional to C-rate',
+                aliases=['current_A'],
             ),
-            'power_W': SignalDefinition(
-                signal_name='power_W',
+            Signal.POWER.value: SignalDefinition(
+                signal_name=Signal.POWER.value,
                 unit='W',
-                interpretation='Instantaneous power (voltage × current). Key for high-power apps.',
+                interpretation='Instantaneous power derived from voltage and current.',
                 use_cases=['peak_power_applications', 'efficiency_analysis', 'thermal_analysis'],
                 typical_range='Depends on capacity and C-rate',
+                aliases=['power_W'],
             ),
-            'energy_Wh': SignalDefinition(
-                signal_name='energy_Wh',
+            Signal.ENERGY.value: SignalDefinition(
+                signal_name=Signal.ENERGY.value,
                 unit='Wh',
-                interpretation='Cumulative energy delivered. Integrated over time.',
+                interpretation='Cumulative energy delivered over the simulation.',
                 use_cases=['capacity_validation', 'efficiency_analysis', 'cycle_comparison'],
                 typical_range='0 to nominal capacity (Ah) × nominal voltage (V)',
+                aliases=['energy_Wh'],
             ),
-            
-            # Efficiency metrics
-            'charge_discharge_efficiency_percent': SignalDefinition(
-                signal_name='charge_discharge_efficiency_percent',
+            Signal.CAPACITY.value: SignalDefinition(
+                signal_name=Signal.CAPACITY.value,
+                unit='Ah',
+                interpretation='Cumulative charge throughput derived from current over time.',
+                use_cases=['capacity_validation', 'cycle_comparison', 'aging_analysis'],
+                typical_range='0 to nominal cell capacity for a full discharge',
+            ),
+            Signal.EFFICIENCY.value: SignalDefinition(
+                signal_name=Signal.EFFICIENCY.value,
                 unit='%',
-                interpretation='Round-trip efficiency: energy returned / energy stored.',
+                interpretation='Efficiency metric derived from delivered and stored energy.',
                 use_cases=['battery_selection', 'system_design', 'cost_optimization'],
                 typical_range='85% - 99% depending on chemistry',
+                aliases=[
+                    'charge_discharge_efficiency_percent',
+                    'round_trip_efficiency_percent',
+                ],
             ),
-            'round_trip_efficiency_percent': SignalDefinition(
-                signal_name='round_trip_efficiency_percent',
-                unit='%',
-                interpretation='Same as charge_discharge_efficiency. For charge+discharge cycles.',
-                use_cases=['cycle_analysis', 'long_term_performance'],
-                typical_range='70% - 95% due to additional losses',
-            ),
-            
-            # State variables
-            'state_of_charge_percent': SignalDefinition(
-                signal_name='state_of_charge_percent',
+            Signal.SOC.value: SignalDefinition(
+                signal_name=Signal.SOC.value,
                 unit='%',
                 interpretation='Battery charge level (0% = empty, 100% = full).',
                 use_cases=['bms_calibration', 'remaining_range_estimation', 'safety_limits'],
                 typical_range='0% - 100%',
+                aliases=['state_of_charge_percent'],
             ),
-            'temperature_C': SignalDefinition(
-                signal_name='temperature_C',
+            Signal.SOH.value: SignalDefinition(
+                signal_name=Signal.SOH.value,
+                unit='%',
+                interpretation='State of health estimate for degradation-aware workflows.',
+                use_cases=['aging_analysis', 'fleet_monitoring', 'maintenance_planning'],
+                typical_range='Typically near 100% for a fresh cell',
+            ),
+            Signal.CAPACITY_FADE.value: SignalDefinition(
+                signal_name=Signal.CAPACITY_FADE.value,
+                unit='%',
+                interpretation='Capacity loss relative to the initial reference capacity.',
+                use_cases=['aging_analysis', 'warranty_tracking', 'cycle_life_prediction'],
+                typical_range='0% for a fresh cell and increases with degradation',
+            ),
+            Signal.TEMPERATURE.value: SignalDefinition(
+                signal_name=Signal.TEMPERATURE.value,
                 unit='°C',
-                interpretation='Cell temperature during operation. Increases with high currents.',
+                interpretation='Cell temperature during operation, distinct from ambient input temperature.',
                 use_cases=['thermal_analysis', 'safety_monitoring', 'cycle_life_prediction'],
                 typical_range='20°C - 60°C typical for safe operation',
+                aliases=['temperature_C'],
             ),
-            
-            # Resistance & losses
-            'internal_resistance_Ohm': SignalDefinition(
-                signal_name='internal_resistance_Ohm',
+            Signal.HEAT_GENERATION.value: SignalDefinition(
+                signal_name=Signal.HEAT_GENERATION.value,
+                unit='W',
+                interpretation='Instantaneous heat generation rate produced by electrochemical losses.',
+                use_cases=['thermal_management', 'cooling_requirements', 'safety_limits'],
+                typical_range='Depends on current, resistance, and operating point',
+            ),
+            Signal.INTERNAL_RESISTANCE.value: SignalDefinition(
+                signal_name=Signal.INTERNAL_RESISTANCE.value,
                 unit='Ω',
-                interpretation='Effective internal resistance. Increases with temperature.',
+                interpretation='Effective internal resistance inferred from voltage and current.',
                 use_cases=['model_degradation', 'cycle_prediction', 'aging_analysis'],
                 typical_range='0.01Ω - 0.5Ω depending on chemistry',
+                aliases=['internal_resistance_Ohm'],
             ),
-            'ohmic_loss_W': SignalDefinition(
-                signal_name='ohmic_loss_W',
-                unit='W',
-                interpretation='Power dissipated as heat due to internal resistance.',
-                use_cases=['thermal_management', 'efficiency_analysis', 'power_budget'],
-                typical_range='Proportional to I²R',
+            Signal.ANODE_POTENTIAL.value: SignalDefinition(
+                signal_name=Signal.ANODE_POTENTIAL.value,
+                unit='V',
+                interpretation='Negative electrode potential available on detailed models.',
+                use_cases=['dfn_diagnostics', 'electrode_analysis'],
+                typical_range='Model-dependent',
             ),
-            'heat_generated_J': SignalDefinition(
-                signal_name='heat_generated_J',
-                unit='J',
-                interpretation='Cumulative heat generated. Important for thermal design.',
-                use_cases=['heat_management', 'cooling_requirements', 'safety_limits'],
-                typical_range='Depends on discharge profile',
+            Signal.CATHODE_POTENTIAL.value: SignalDefinition(
+                signal_name=Signal.CATHODE_POTENTIAL.value,
+                unit='V',
+                interpretation='Positive electrode potential available on detailed models.',
+                use_cases=['dfn_diagnostics', 'electrode_analysis'],
+                typical_range='Model-dependent',
             ),
-            
-            # Peak metrics
+            Signal.OVERPOTENTIAL.value: SignalDefinition(
+                signal_name=Signal.OVERPOTENTIAL.value,
+                unit='V',
+                interpretation='Electrochemical overpotential generated by polarization losses.',
+                use_cases=['loss_analysis', 'fast_charge_diagnostics'],
+                typical_range='Model-dependent',
+            ),
+            Signal.ELECTROLYTE_CONCENTRATION.value: SignalDefinition(
+                signal_name=Signal.ELECTROLYTE_CONCENTRATION.value,
+                unit='mol.m-3',
+                interpretation='Electrolyte concentration state, mainly for DFN-style analysis.',
+                use_cases=['dfn_diagnostics', 'transport_analysis'],
+                typical_range='Model-dependent',
+            ),
+
+            # Derived summary metrics exposed by comparison and reporting layers
             'peak_voltage_V': SignalDefinition(
                 signal_name='peak_voltage_V',
                 unit='V',
-                interpretation='Maximum voltage reached during operation.',
+                interpretation='Derived summary metric: maximum voltage reached during operation.',
                 use_cases=['charger_design', 'electronics_protection', 'overcharge_detection'],
                 typical_range='≤ 4.2V for lithium safety',
             ),
             'peak_current_A': SignalDefinition(
                 signal_name='peak_current_A',
                 unit='A',
-                interpretation='Maximum current drawn. Important for power applications.',
+                interpretation='Derived summary metric: maximum current magnitude during operation.',
                 use_cases=['pack_design', 'connector_sizing', 'thermal_design'],
                 typical_range='Depends on capacity and load profile',
             ),
             'peak_power_W': SignalDefinition(
                 signal_name='peak_power_W',
                 unit='W',
-                interpretation='Maximum instantaneous power. Critical for high-power applications.',
+                interpretation='Derived summary metric: maximum instantaneous power.',
                 use_cases=['ev_design', 'power_tool_specs', 'fast_charging'],
                 typical_range='10W - 10kW depending on chemistry',
             ),
@@ -617,11 +680,7 @@ class APISchema:
         return self._parameter_space
     
     def get_signals(self) -> SignalCatalog:
-        """
-        Returns: SignalCatalog with all available metrics.
-        
-        LLM USE: "What can I measure?"
-        """
+        """Get the signal catalog for data exposed on SimulationRun.result."""
         return self._signal_catalog
     
     def get_presets(self) -> PresetCatalog:
@@ -632,20 +691,88 @@ class APISchema:
         """
         return self._preset_catalog
     
-    def get_tools(self) -> List[str]:
+    def get_tools(self) -> List[Dict[str, Any]]:
         """
-        Returns: List of available operations/tools.
+        Returns: Structured catalog of the currently exposed AgentAPI tools.
         
         LLM USE: "What can I DO?"
-        
-        This will be expanded in Layer 2 (Investigation Tools).
         """
         return [
-            'compare_presets',           # Compare chemistries
-            'sensitivity_analysis',      # How much does parameter X affect metric Y?
-            'constraint_check',          # Is this scenario feasible?
-            'parameter_explorer',        # Search parameter space guided
-            'batch_simulator',           # Run many scenarios at once
+            {
+                'name': 'describe_api',
+                'description': 'Get a human-readable description of the entire API',
+                'parameters': {},
+            },
+            {
+                'name': 'list_presets',
+                'description': 'List all available cell chemistry presets',
+                'parameters': {
+                    'chemistry': {
+                        'type': 'string',
+                        'description': 'Filter by chemistry (optional)',
+                    }
+                },
+            },
+            {
+                'name': 'compare_presets',
+                'description': 'Compare multiple cell chemistry presets side-by-side',
+                'parameters': {
+                    'preset_names': {
+                        'type': 'array',
+                        'items': {'type': 'string'},
+                        'description': 'List of preset names to compare',
+                    },
+                    'environment_temp_C': {
+                        'type': 'number',
+                        'description': 'Ambient temperature around the cell (default 25°C)',
+                        'optional': True,
+                    },
+                },
+            },
+            {
+                'name': 'sensitivity_analysis',
+                'description': 'Analyze how parameters affect battery performance',
+                'parameters': {
+                    'preset_name': {
+                        'type': 'string',
+                        'description': 'Cell chemistry to analyze',
+                    },
+                    'parameters': {
+                        'type': 'array',
+                        'items': {'type': 'string'},
+                        'description': 'Parameters to analyze (e.g., [temperature_C, nominal_capacity_Ah])',
+                    },
+                },
+            },
+            {
+                'name': 'check_feasibility',
+                'description': 'Check if a cell/environment combination is physically feasible',
+                'parameters': {
+                    'preset_name': {
+                        'type': 'string',
+                        'description': 'Cell preset',
+                    },
+                    'temperature_C': {
+                        'type': 'number',
+                        'description': 'Ambient temperature around the cell',
+                    },
+                },
+            },
+            {
+                'name': 'save_session',
+                'description': 'Save the current investigation session to a file',
+                'parameters': {
+                    'filepath': {
+                        'type': 'string',
+                        'description': 'Path to save session JSON (e.g., investigation.json)',
+                    },
+                },
+            },
+            {
+                'name': 'get_session_summary',
+                'description': 'Get a summary of investigations run in this session',
+                'parameters': {},
+            },
         ]
     
     # ========================================================================

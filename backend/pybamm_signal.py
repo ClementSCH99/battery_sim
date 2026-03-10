@@ -1,8 +1,10 @@
 # battery_sim/backend/pybamm_signal
 from battery_sim.types.signal import Signal
 
-# Map Signal enum to PyBaMM signal names
-# Note: Some signals may have multiple alternative names in PyBaMM
+# Map Signal enum to PyBaMM signal names.
+# Signal.TEMPERATURE is the runtime cell temperature signal, distinct from the
+# Environment ambient temperature input.
+
 PYBAMM_SIGNAL_MAP = {
     Signal.TIME: ("Time [s]", "s"),
     Signal.VOLTAGE: ("Terminal voltage [V]", "V"),
@@ -18,8 +20,8 @@ PYBAMM_SIGNAL_MAP = {
     Signal.ELECTROLYTE_CONCENTRATION: ("Electrolyte concentration [mol.m-3]", "mol.m-3"),
 }
 
-# Alternative PyBaMM signal names for some signals
-# PyBaMM may use different names depending on the model and discharge
+# Alternative PyBaMM signal names for some canonical runtime signals.
+# PyBaMM may use different names depending on the model and discharge.
 PYBAMM_SIGNAL_ALIASES = {
     Signal.SOC: [
         "State of charge",
@@ -29,7 +31,7 @@ PYBAMM_SIGNAL_ALIASES = {
     ]
 }
 
-# Derived signals (calculated, not directly from PyBaMM)
+# Derived runtime signals calculated from the canonical extracted traces.
 DERIVED_SIGNALS = {
     Signal.POWER: ("power", "W"),  # V * I
     Signal.ENERGY: ("energy", "Wh"),  # integral of power

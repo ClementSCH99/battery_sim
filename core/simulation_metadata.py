@@ -55,9 +55,15 @@ class SimulationMetadata:
     
     solver_type: str
     """Solver name: "CasADi" or "SciPy" or similar"""
+
+    duration_source: str = "wall_clock"
+    """Source of duration_s, e.g. wall_clock or pybamm_total_time"""
     
     solver_iterations: int = 0
-    """Number of solver time steps or Newton iterations"""
+    """Number of recorded solver time points"""
+
+    solver_iterations_kind: str = "time_points"
+    """Semantic meaning of solver_iterations, e.g. time_points"""
     
     success: bool = True
     """True if simulation converged successfully"""
@@ -86,7 +92,9 @@ class SimulationMetadata:
         success: bool = True,
         convergence_reason: str = "Converged",
         duration_s: float = 0.0,
+        duration_source: str = "wall_clock",
         protocol_steps: int = 0,
+        solver_iterations_kind: str = "time_points",
     ) -> "SimulationMetadata":
         """
         Factory method to create metadata from SolverConfig and runtime data.
@@ -111,8 +119,10 @@ class SimulationMetadata:
         return cls(
             timestamp_utc=datetime.utcnow().isoformat() + "Z",
             duration_s=duration_s,
+            duration_source=duration_source,
             solver_type=solver_config.solver.value,
             solver_iterations=solver_iterations,
+            solver_iterations_kind=solver_iterations_kind,
             success=success,
             convergence_reason=convergence_reason,
             rtol=solver_config.rtol,
@@ -132,8 +142,10 @@ class SimulationMetadata:
         return {
             "timestamp_utc": self.timestamp_utc,
             "duration_s": self.duration_s,
+            "duration_source": self.duration_source,
             "solver_type": self.solver_type,
             "solver_iterations": self.solver_iterations,
+            "solver_iterations_kind": self.solver_iterations_kind,
             "success": self.success,
             "convergence_reason": self.convergence_reason,
             "rtol": self.rtol,
@@ -168,6 +180,6 @@ class SimulationMetadata:
         return f"""Simulation Metadata:
   Timestamp: {self.timestamp_utc}
   Duration: {self.duration_s:.3f} seconds
-  Solver: {self.solver_type} ({self.solver_iterations} iterations)
-  Convergence: {status_text}
+    Solver: {self.solver_type} ({self.solver_iterations} {self.solver_iterations_kind})
+    Convergence: {status_text} ({self.convergence_reason})
   Configuration: rtol={self.rtol:.0e}, atol={self.atol:.0e}, initial_soc={self.initial_soc:.2f}"""

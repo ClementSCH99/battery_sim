@@ -203,25 +203,30 @@ class ErrorDetector:
         voltage_values = voltage_data.values
         time_values = voltage_data.time_s
         
-        for i, (v, t) in enumerate(zip(voltage_values, time_values)):
-            if v < min_voltage_v:
-                errors.append(SimulationError(
-                    error_type=ErrorType.VOLTAGE_OUT_OF_BOUNDS,
-                    severity="critical",
-                    message=f"Voltage below minimum safe voltage",
-                    location=f"at {t:.1f} seconds (index {i})",
-                    value=v,
-                    bounds=f"[{min_voltage_v}V, {max_voltage_v}V]"
-                ))
-            elif v > max_voltage_v:
-                errors.append(SimulationError(
-                    error_type=ErrorType.VOLTAGE_OUT_OF_BOUNDS,
-                    severity="critical",
-                    message=f"Voltage above maximum safe voltage",
-                    location=f"at {t:.1f} seconds (index {i})",
-                    value=v,
-                    bounds=f"[{min_voltage_v}V, {max_voltage_v}V]"
-                ))
+        low_indices = [index for index, value in enumerate(voltage_values) if value < min_voltage_v]
+        high_indices = [index for index, value in enumerate(voltage_values) if value > max_voltage_v]
+
+        if low_indices:
+            first_index = low_indices[0]
+            errors.append(SimulationError(
+                error_type=ErrorType.VOLTAGE_OUT_OF_BOUNDS,
+                severity="critical",
+                message=f"Voltage below minimum safe voltage ({len(low_indices)} samples)",
+                location=f"first at {time_values[first_index]:.1f} seconds (index {first_index})",
+                value=min(voltage_values[index] for index in low_indices),
+                bounds=f"[{min_voltage_v}V, {max_voltage_v}V]"
+            ))
+
+        if high_indices:
+            first_index = high_indices[0]
+            errors.append(SimulationError(
+                error_type=ErrorType.VOLTAGE_OUT_OF_BOUNDS,
+                severity="critical",
+                message=f"Voltage above maximum safe voltage ({len(high_indices)} samples)",
+                location=f"first at {time_values[first_index]:.1f} seconds (index {first_index})",
+                value=max(voltage_values[index] for index in high_indices),
+                bounds=f"[{min_voltage_v}V, {max_voltage_v}V]"
+            ))
         
         return errors
     
@@ -245,21 +250,23 @@ class ErrorDetector:
             nan_indices = np.where(np.isnan(values))[0]
             inf_indices = np.where(np.isinf(values))[0]
             
-            for idx in nan_indices:
+            if len(nan_indices) > 0:
+                idx = int(nan_indices[0])
                 errors.append(SimulationError(
                     error_type=ErrorType.NAN_DETECTED,
                     severity="critical",
-                    message=f"NaN detected in {signal.value}",
-                    location=f"at sample {idx} (time {timeseries.time_s[idx]:.1f}s)",
+                    message=f"NaN detected in {signal.value} ({len(nan_indices)} samples)",
+                    location=f"first at sample {idx} (time {timeseries.time_s[idx]:.1f}s)",
                     value=None,
                 ))
             
-            for idx in inf_indices:
+            if len(inf_indices) > 0:
+                idx = int(inf_indices[0])
                 errors.append(SimulationError(
                     error_type=ErrorType.INF_DETECTED,
                     severity="critical",
-                    message=f"Infinity detected in {signal.value}",
-                    location=f"at sample {idx} (time {timeseries.time_s[idx]:.1f}s)",
+                    message=f"Infinity detected in {signal.value} ({len(inf_indices)} samples)",
+                    location=f"first at sample {idx} (time {timeseries.time_s[idx]:.1f}s)",
                     value=None,
                 ))
         

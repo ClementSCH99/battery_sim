@@ -4,12 +4,13 @@ import numpy as np
 import time
 from typing import Type
 
-from battery_sim.backend.base import SimulationBackend
+from battery_sim.backend.parameter_mapper import resolve_parameter_mapping
 from battery_sim.backend.pybamm_signal import PYBAMM_SIGNAL_MAP, PYBAMM_SIGNAL_ALIASES, DERIVED_SIGNALS
 from battery_sim.core.cell import Cell
 from battery_sim.core.environment import Environment
 from battery_sim.core.model import Model
 from battery_sim.core.simulation import Simulation
+from battery_sim.core.simulation_backend import SimulationBackend
 from battery_sim.core.result import Result
 from battery_sim.core.solver import Solver, SolverConfig
 from battery_sim.types.timeseries import TimeSeries
@@ -37,7 +38,7 @@ class PyBaMMBackend(SimulationBackend):
         """
         solution, elapsed_seconds = self._execute_simulation(simulation, **kwargs)
         result = self._extract_result(solution)
-        observability = self._build_observability_data(result, simulation, elapsed_seconds)
+        observability = self._build_observability_data(result, solution, simulation, elapsed_seconds)
         
         return SimulationRun(
             result=result,
@@ -232,32 +233,51 @@ class PyBaMMBackend(SimulationBackend):
         
         return Result(data)
     
-    def _build_observability_data(self, result: Result, simulation: Simulation, elapsed_seconds: float) -> dict:
+    def _extract_solution_telemetry(self, solution, elapsed_seconds: float) -> dict:
+        termination = str(getattr(solution, "termination", "unknown"))
+        termination_text = termination.strip() or "unknown"
+        total_time = getattr(getattr(solution, "total_time", None), "value", None)
+        lower_termination = termination_text.lower()
+        failure_markers = ("error", "fail", "infeasible", "singular", "diverg")
+
+        return {
+            "success": not any(marker in lower_termination for marker in failure_markers),
+            "convergence_reason": termination_text,
+            "duration_s": total_time if total_time is not None else elapsed_seconds,
+            "duration_source": "pybamm_total_time" if total_time is not None else "wall_clock",
+        }
+
+    def _build_observability_data(self, result: Result, solution, simulation: Simulation, elapsed_seconds: float) -> dict:
         """
         Build all B11 observability components from result.
         
         Returns:
             dict with 'metadata', 'errors', 'diagnostics' keys
         """
-        voltage_data = result.voltage()
-        solver_iterations = len(voltage_data.time_s) if voltage_data is not None else 0
+        telemetry = self._extract_solution_telemetry(solution, elapsed_seconds)
+        time_data = solution["Time [s]"].data
+        solver_iterations = len(time_data) if time_data is not None else 0
         
         metadata = SimulationMetadata.create(
             solver_config=simulation.solver_config,
             solver_iterations=solver_iterations,
-            success=True,
-            convergence_reason="Converged",
-            duration_s=elapsed_seconds,
+            solver_iterations_kind="time_points",
+            success=telemetry["success"],
+            convergence_reason=telemetry["convergence_reason"],
+            duration_s=telemetry["duration_s"],
+            duration_source=telemetry["duration_source"],
             protocol_steps=len(simulation.protocol.steps) if simulation.protocol else 0,
         )
         
-        errors = ErrorDetector.detect_all(result)
+        errors = ErrorDetector.detect_all(result, cell=simulation.cell, model=simulation.model)
         
         diagnostics = ConvergenceDiagnostics.create(
             total_time_steps=solver_iterations,
-            avg_newton_iterations=1.0,
-            max_newton_iterations=1,
-            min_newton_iterations=1,
+            avg_newton_iterations=None,
+            max_newton_iterations=None,
+            min_newton_iterations=None,
+            problem_description="Newton iteration telemetry unavailable in current PyBaMM integration",
+            telemetry_status="unavailable",
         )
         
         return {
@@ -316,22 +336,11 @@ class PyBaMMBackend(SimulationBackend):
         - Cell object (with chemistry-specific parameters)
         - Environment object
         
-        **FIXED**: Now selects appropriate PyBaMM parameter set based on cell chemistry
+        Mapping is centralized in backend.parameter_mapper with an explicit
+        policy for exact chemistries and supported chemistry variants.
         """
-        # Map cell chemistry to PyBaMM parameter sets
-        chemistry_to_param_set = {
-            "LFP": "Marquis2019",      # LiFePO4 parameters
-            "NMC": "Chen2020",          # NMC parameters (default)
-            "NCA": "Chen2020",          # NCA parameters (similar to NMC)
-            "LCO": "Chen2020",          # LiCoO2 (use NMC-like)
-            "LMNO": "Chen2020",         # LiMnNiO (use NMC-like)
-        }
-        
-        # Get chemistry from cell
-        chemistry = getattr(cell, 'chemistry', 'NMC')
-        param_set = chemistry_to_param_set.get(chemistry, "Chen2020")
-        
-        param_values = pybamm.ParameterValues(param_set)
+        mapping = resolve_parameter_mapping(cell)
+        param_values = pybamm.ParameterValues(mapping.parameter_set)
         updates = {}
 
         # Map Cell parameters to PyBaMM parameters
@@ -361,10 +370,7 @@ class PyBaMMBackend(SimulationBackend):
 
 
         # Map Environment parameters to PyBaMM parameters
-        if environment.temperature_C is not None:
-            updates["Ambient temperature [K]"] = environment.temperature_C + 273.15
-        if environment.ambiant_temperature_C is not None:
-            updates["Ambient temperature [K]"] = environment.ambiant_temperature_C + 273.15
+        updates["Ambient temperature [K]"] = environment.ambient_temperature_C + 273.15
         if environment.convection_W_per_m2K is not None:
             updates["Convection coefficient [W/m^2/K]"] = environment.convection_W_per_m2K
 

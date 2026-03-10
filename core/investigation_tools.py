@@ -46,6 +46,7 @@ WITH TOOLS:
 """
 
 from dataclasses import dataclass, field, replace
+from importlib import import_module
 from typing import Dict, List, Any, Optional, Tuple, Callable
 
 from battery_sim.core.simulation import Simulation
@@ -54,7 +55,19 @@ from battery_sim.core.model import Model
 from battery_sim.core.protocol import Protocol
 from battery_sim.core.environment import Environment
 from battery_sim.core.solver import SolverConfig
-from battery_sim.backend.pybamm_backend import PyBaMMBackend
+from battery_sim.core.application_services import BatchExecutionService
+from battery_sim.core.application_services import ComparisonService
+from battery_sim.core.application_services import SensitivityResult
+from battery_sim.core.application_services import SensitivityService
+from battery_sim.core.simulation_run import SimulationRun
+from battery_sim.core.simulation_backend import SimulationBackend
+
+
+def _create_default_backend() -> SimulationBackend:
+    """Load the default concrete backend lazily to avoid a core import-time dependency."""
+    backend_module = import_module("battery_sim.backend.pybamm_backend")
+    backend_class = getattr(backend_module, "PyBaMMBackend")
+    return backend_class()
 
 
 # ============================================================================
@@ -75,7 +88,7 @@ class BatchSimulationConfig:
     environment: Environment = field(default_factory=lambda: Environment(temperature_C=25.0))
     model: Model = Model.SPM
     solver_config: SolverConfig = field(default_factory=SolverConfig)
-    backend: PyBaMMBackend = field(default_factory=PyBaMMBackend)
+    backend: SimulationBackend = field(default_factory=_create_default_backend)
 
 
 class BatchSimulator:
@@ -93,7 +106,7 @@ class BatchSimulator:
     def run_presets(
         preset_names: List[str],
         config: BatchSimulationConfig,
-    ) -> List[Tuple[str, Any]]:  # (preset_name, SimulationRun)
+    ) -> List[Tuple[str, Optional[SimulationRun]]]:
         """
         Run simulations for multiple cell presets.
         
@@ -107,33 +120,8 @@ class BatchSimulator:
         Returns:
             List of (preset_name, simulation_run) tuples
         """
-        results = []
-        
-        for preset_name in preset_names:
-            # Create cell from preset
-            cell = Cell.preset(preset_name)
-            
-            # Create simulation
-            sim = Simulation(
-                cell=cell,
-                model=config.model,
-                protocol=config.protocol,
-                environment=config.environment,
-                backend=config.backend,
-                solver_config=config.solver_config,
-            )
-            
-            # Run and store
-            try:
-                run = sim.run()
-                results.append((preset_name, run))
-            except Exception as e:
-                # TEACHING: Handle failures gracefully
-                # Log the error but continue with other presets
-                print(f"Warning: Failed to simulate {preset_name}: {str(e)}")
-                results.append((preset_name, None))
-        
-        return results
+        service = BatchExecutionService()
+        return service.run_presets(preset_names, config)
     
     @staticmethod
     def run_parameter_variations(
@@ -141,7 +129,7 @@ class BatchSimulator:
         parameter_name: str,
         parameter_values: List[Any],
         config: BatchSimulationConfig,
-    ) -> List[Tuple[Any, Any]]:  # (parameter_value, SimulationRun)
+    ) -> List[Tuple[Any, Optional[SimulationRun]]]:
         """
         Run simulations with one parameter varying.
         
@@ -156,42 +144,13 @@ class BatchSimulator:
         Returns:
             List of (parameter_value, simulation_run) tuples
         """
-        results = []
-        
-        for value in parameter_values:
-            # Determine if this is a cell or environment parameter
-            cell_params = ['nominal_capacity_Ah', 'nominal_voltage_V', 'internal_resistance_Ohm', 'chemistry']
-            env_params = ['temperature_C']
-            
-            modified_cell = baseline_cell
-            modified_env = config.environment
-            
-            # If it's a cell parameter, modify the cell
-            if parameter_name in cell_params:
-                modified_cell = replace(baseline_cell, **{parameter_name: value})
-            
-            # If it's an environment parameter, modify the environment
-            elif parameter_name in env_params:
-                modified_env = replace(config.environment, **{parameter_name: value})
-            
-            # Create and run simulation
-            sim = Simulation(
-                cell=modified_cell,
-                model=config.model,
-                protocol=config.protocol,
-                environment=modified_env,
-                backend=config.backend,
-                solver_config=config.solver_config,
-            )
-            
-            try:
-                run = sim.run()
-                results.append((value, run))
-            except Exception as e:
-                print(f"Warning: Failed for {parameter_name}={value}: {str(e)}")
-                results.append((value, None))
-        
-        return results
+        service = BatchExecutionService()
+        return service.run_parameter_variations(
+            baseline_cell,
+            parameter_name,
+            parameter_values,
+            config,
+        )
 
 
 # ============================================================================
@@ -227,88 +186,32 @@ class SimulationComparison:
     QUESTION TO ASK: "What does 'better' mean?"
     Different applications prioritize different metrics:
     - High-power tool: maximize peak_power_W
-    - Long-range EV: maximize energy_Wh
-    - Safe application: minimize temperature_impact
+    - Long-range EV: maximize total_energy_Wh
+    - Safe application: monitor temperature and thermal margins
     
     The comparison tool extracts all metrics, and the LLM decides what matters.
     """
     
     @staticmethod
     def extract_metrics(
-        simulation_run: Any,  # SimulationRun from B11
-    ) -> Dict[str, float]:
+        simulation_run: Optional[SimulationRun],
+    ) -> Dict[str, Any]:
         """
         TEACHING: Extract all key metrics from a simulation result.
         
         This is like a "profile" of the battery. You can compare profiles.
         
         Args:
-            simulation_run: Result from simulation.run()
+            simulation_run: Canonical output returned by simulation.run()
         
         Returns:
             Dict mapping metric names to values
         """
-        if not simulation_run:
-            return {}
-        
-        result = simulation_run.result  # Get underlying Result from SimulationRun
-        
-        # Extract all available metrics
-        metrics = {}
-        
-        # Basic signals
-        try:
-            metrics['peak_voltage_V'] = result.peak_voltage()
-        except:
-            metrics['peak_voltage_V'] = None
-        
-        try:
-            metrics['peak_current_A'] = result.peak_current()
-        except:
-            metrics['peak_current_A'] = None
-        
-        try:
-            metrics['peak_power_W'] = result.peak_power()
-        except:
-            metrics['peak_power_W'] = None
-        
-        try:
-            metrics['total_energy_Wh'] = result.total_energy_Wh()
-        except:
-            metrics['total_energy_Wh'] = None
-        
-        try:
-            metrics['efficiency_percent'] = result.efficiency()
-        except:
-            metrics['efficiency_percent'] = None
-        
-        # Metadata quality metrics
-        if simulation_run.metadata:
-            metrics['solver_time_s'] = simulation_run.metadata.duration_s
-            metrics['success'] = simulation_run.metadata.success
-        
-        # Diagnostics
-        if simulation_run.diagnostics:
-            metrics['stiffness'] = (
-                'stiff' if simulation_run.diagnostics.is_stiff() else 'well-behaved'
-            )
-            metrics['avg_iterations'] = simulation_run.diagnostics.avg_newton_iterations
-        
-        # Errors (count)
-        if simulation_run.errors:
-            critical = len([e for e in simulation_run.errors if e.severity == 'critical'])
-            warnings = len([e for e in simulation_run.errors if e.severity == 'warning'])
-            metrics['critical_errors'] = critical
-            metrics['warnings'] = warnings
-        else:
-            metrics['critical_errors'] = 0
-            metrics['warnings'] = 0
-        
-        return metrics
+        return ComparisonService.extract_metrics(simulation_run)
     
     @staticmethod
     def compare_batch_results(
-        results: List[Tuple[str, Any]],  # (name/label, SimulationRun)
+        results: List[Tuple[str, Optional[SimulationRun]]],
         metric_filters: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
@@ -324,115 +227,12 @@ class SimulationComparison:
         Returns:
             Dict with comparison data (metrics, relative diffs, rankings)
         """
-        
-        # Extract metrics from all results
-        all_metrics = {}
-        for label, run in results:
-            metrics = SimulationComparison.extract_metrics(run)
-            all_metrics[label] = metrics
-        
-        # Identify common metrics
-        common_metrics = set()
-        for metrics in all_metrics.values():
-            common_metrics.update(metrics.keys())
-        
-        if metric_filters:
-            common_metrics = common_metrics.intersection(set(metric_filters))
-        
-        # Build comparison
-        comparison = {
-            'scenarios': list(all_metrics.keys()),
-            'metrics': {}
-        }
-        
-        # For each metric, gather values and compute statistics
-        for metric_name in sorted(common_metrics):
-            values = {}
-            numbers = []
-            
-            for label, metrics in all_metrics.items():
-                value = metrics.get(metric_name)
-                values[label] = value
-                
-                # Track numeric values for stats
-                if isinstance(value, (int, float)) and value is not None:
-                    numbers.append((label, value))
-            
-            # Store metric data
-            metric_data = {
-                'values': values,
-                'type': 'numeric' if numbers else 'categorical',
-            }
-            
-            # Compute stats for numeric metrics
-            if numbers:
-                numeric_values = [v for _, v in numbers]
-                metric_data['min'] = min(numeric_values)
-                metric_data['max'] = max(numeric_values)
-                metric_data['range'] = metric_data['max'] - metric_data['min']
-                
-                # Relative to first
-                if len(numeric_values) > 0:
-                    baseline = numeric_values[0]
-                    if baseline != 0:
-                        metric_data['relative_to_first'] = {
-                            label: ((value - baseline) / baseline * 100)
-                            for label, value in numbers
-                        }
-            
-            comparison['metrics'][metric_name] = metric_data
-        
-        return comparison
+        return ComparisonService.compare_batch_results(results, metric_filters=metric_filters)
 
 
 # ============================================================================
 # SENSITIVITY ANALYZER: Quantify parameter impacts
 # ============================================================================
-
-@dataclass(frozen=True)
-class SensitivityResult:
-    """
-    Results from sensitivity analysis on one parameter.
-    
-    TEACHING: Sensitivity tells you "how much does X matter?"
-    A high sensitivity means small changes in X cause big changes in output.
-    A low sensitivity means X doesn't matter much.
-    
-    EXAMPLE: Temperature sensitivity
-    - If efficiency changes 50% as T goes 0→50°C: HIGH sensitivity
-    - If efficiency changes 2% as T goes 0→50°C: LOW sensitivity
-    """
-    parameter_name: str
-    parameter_values: List[float]
-    metric_name: str
-    metric_values: List[Optional[float]]
-    
-    # Statistics
-    min_value: Optional[float] = None
-    max_value: Optional[float] = None
-    range_value: Optional[float] = None
-    sensitivity_coefficient: Optional[float] = None  # (max-min)/baseline * 100
-    
-    def interpretation(self) -> str:
-        """
-        Human-readable interpretation of sensitivity.
-        
-        TEACHING: This is how we help the LLM understand the result.
-        """
-        if self.sensitivity_coefficient is None:
-            return "Could not compute sensitivity (insufficient data)"
-        
-        if self.sensitivity_coefficient < 1:
-            return "VERY LOW sensitivity - parameter barely affects result"
-        elif self.sensitivity_coefficient < 5:
-            return "LOW sensitivity - small impact"
-        elif self.sensitivity_coefficient < 20:
-            return "MODERATE sensitivity - meaningful impact"
-        elif self.sensitivity_coefficient < 50:
-            return "HIGH sensitivity - significant impact"
-        else:
-            return "VERY HIGH sensitivity - dramatic impact"
-
 
 class SensitivityAnalyzer:
     """
@@ -451,7 +251,7 @@ class SensitivityAnalyzer:
         parameter_name: str,
         parameter_values: List[float],
         config: BatchSimulationConfig,
-        metric_extractor: Callable[[Any], float],
+        metric_extractor: Callable[[SimulationRun], float],
     ) -> SensitivityResult:
         """
         Analyze how one parameter affects a metric.
@@ -471,55 +271,13 @@ class SensitivityAnalyzer:
         Returns:
             SensitivityResult with statistics
         """
-        
-        # Run batch with parameter variations
-        results = BatchSimulator.run_parameter_variations(
+        service = SensitivityService()
+        return service.analyze_single_parameter(
             baseline_cell,
             parameter_name,
             parameter_values,
             config,
-        )
-        
-        # Extract metric values
-        metric_values = []
-        valid_values = []
-        
-        for param_value, run in results:
-            if run:
-                try:
-                    metric = metric_extractor(run)
-                    metric_values.append(metric)
-                    if metric is not None:
-                        valid_values.append(metric)
-                except:
-                    metric_values.append(None)
-            else:
-                metric_values.append(None)
-        
-        # Compute sensitivity
-        sensitivity_coeff = None
-        min_val = None
-        max_val = None
-        range_val = None
-        
-        if valid_values and len(valid_values) > 0:
-            min_val = min(valid_values)
-            max_val = max(valid_values)
-            range_val = max_val - min_val
-            
-            # Sensitivity coefficient
-            if valid_values[0] != 0:
-                sensitivity_coeff = (range_val / abs(valid_values[0])) * 100
-        
-        return SensitivityResult(
-            parameter_name=parameter_name,
-            parameter_values=parameter_values,
-            metric_name=metric_extractor.__name__,
-            metric_values=metric_values,
-            min_value=min_val,
-            max_value=max_val,
-            range_value=range_val,
-            sensitivity_coefficient=sensitivity_coeff,
+            metric_extractor,
         )
 
 
@@ -677,7 +435,7 @@ class ParameterExplorer:
         cell_template: Cell,
         parameter_ranges: Dict[str, List[float]],
         config: BatchSimulationConfig,
-        metric_extractor: Callable[[Any], float],
+        metric_extractor: Callable[[SimulationRun], float],
     ) -> Dict[str, Any]:
         """
         Scan parameter space on a grid.

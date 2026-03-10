@@ -9,10 +9,12 @@ parameters to analyze their impact on simulation results.
 from dataclasses import dataclass, field, replace
 from typing import Dict, List, Any, Callable, Optional, Tuple
 import json
+from battery_sim.core.application_services import ParameterSweepService
+from battery_sim.core.application_services import SimulationExecutionService
 from battery_sim.core.cell import Cell
 from battery_sim.core.environment import Environment
 from battery_sim.core.simulation import Simulation
-from battery_sim.core.result import Result
+from battery_sim.core.simulation_run import SimulationRun
 
 
 @dataclass(frozen=True)
@@ -56,10 +58,10 @@ class ParameterOverride:
 
 @dataclass
 class SweepResult:
-    """Result of a parameter sweep simulation."""
+    """Result of a parameter sweep simulation run."""
     parameter_name: str
     parameter_value: Any
-    simulation_result: Result
+    simulation_result: SimulationRun
     override: ParameterOverride
 
 
@@ -69,6 +71,9 @@ class ParameterSweep:
     
     Supports both single-parameter sweeps and multi-dimensional sweeps.
     """
+
+    _execution_service = SimulationExecutionService()
+    _sweep_service = ParameterSweepService(_execution_service)
 
     @staticmethod
     def sweep_cell_parameter(
@@ -87,7 +92,7 @@ class ParameterSweep:
             verbose: Print progress information
             
         Returns:
-            List of SweepResult objects with simulations and outcomes
+            List of SweepResult objects with SimulationRun outputs and overrides
             
         Example:
             >>> sim = Simulation(...)
@@ -99,38 +104,30 @@ class ParameterSweep:
             >>> for r in results:
             ...     print(f"{r.parameter_value} Ah: {r.simulation_result.peak_power()} W")
         """
+        raw_results = ParameterSweep._sweep_service.sweep_parameter(
+            baseline_simulation,
+            "cell",
+            parameter_name,
+            values,
+        )
         sweep_results = []
-        
-        for i, value in enumerate(values):
+
+        for i, (value, result, cell_overrides, env_overrides) in enumerate(raw_results):
             if verbose:
-                print(f"  [{i+1}/{len(values)}] {parameter_name} = {value}...", end=" ", flush=True)
-            
-            # Create modified cell
-            modified_cell = replace(baseline_simulation.cell, **{parameter_name: value})
-            
-            # Create modified simulation
-            modified_sim = replace(baseline_simulation, cell=modified_cell)
-            
-            # Run simulation
-            result = modified_sim.run()
-            
-            # Track override
-            override = ParameterOverride(
-                cell_parameters={parameter_name: value}
-            )
-            
+                print(f"  [{i+1}/{len(values)}] {parameter_name} = {value}... Done")
+
             sweep_results.append(
                 SweepResult(
                     parameter_name=parameter_name,
                     parameter_value=value,
                     simulation_result=result,
-                    override=override
+                    override=ParameterOverride(
+                        cell_parameters=cell_overrides,
+                        environment_parameters=env_overrides,
+                    ),
                 )
             )
-            
-            if verbose:
-                print("Done")
-        
+
         return sweep_results
 
     @staticmethod
@@ -159,38 +156,30 @@ class ParameterSweep:
             ...     [0, 25, 40, 60]
             ... )
         """
+        raw_results = ParameterSweep._sweep_service.sweep_parameter(
+            baseline_simulation,
+            "environment",
+            parameter_name,
+            values,
+        )
         sweep_results = []
-        
-        for i, value in enumerate(values):
+
+        for i, (value, result, cell_overrides, env_overrides) in enumerate(raw_results):
             if verbose:
-                print(f"  [{i+1}/{len(values)}] {parameter_name} = {value}...", end=" ", flush=True)
-            
-            # Create modified environment
-            modified_env = replace(baseline_simulation.environment, **{parameter_name: value})
-            
-            # Create modified simulation
-            modified_sim = replace(baseline_simulation, environment=modified_env)
-            
-            # Run simulation
-            result = modified_sim.run()
-            
-            # Track override
-            override = ParameterOverride(
-                environment_parameters={parameter_name: value}
-            )
-            
+                print(f"  [{i+1}/{len(values)}] {parameter_name} = {value}... Done")
+
             sweep_results.append(
                 SweepResult(
                     parameter_name=parameter_name,
                     parameter_value=value,
                     simulation_result=result,
-                    override=override
+                    override=ParameterOverride(
+                        cell_parameters=cell_overrides,
+                        environment_parameters=env_overrides,
+                    ),
                 )
             )
-            
-            if verbose:
-                print("Done")
-        
+
         return sweep_results
 
     @staticmethod
@@ -198,7 +187,7 @@ class ParameterSweep:
         baseline_simulation: Simulation,
         parameters: Dict[str, List[Any]],
         verbose: bool = False,
-    ) -> List[Tuple[Dict[str, Any], Result, ParameterOverride]]:
+    ) -> List[Tuple[Dict[str, Any], SimulationRun, ParameterOverride]]:
         """
         Execute multi-dimensional parameter sweep.
         
@@ -213,7 +202,7 @@ class ParameterSweep:
             verbose: Print progress
             
         Returns:
-            List of tuples: (parameter_dict, result, override)
+            List of tuples: (parameter_dict, simulation_run, override)
             
         Example:
             >>> params = {
@@ -223,95 +212,36 @@ class ParameterSweep:
             >>> results = ParameterSweep.multi_parameter_sweep(sim, params, verbose=True)
             >>> # 3 × 2 = 6 simulations total
         """
-        # Parse parameters into cell and environment dicts
-        cell_params = {}
-        env_params = {}
-        param_names = list(parameters.keys())
-        
-        for param_name in param_names:
-            if param_name.startswith('cell::'):
-                clean_name = param_name[6:]
-                cell_params[clean_name] = parameters[param_name]
-            elif param_name.startswith('environment::'):
-                clean_name = param_name[13:]
-                env_params[clean_name] = parameters[param_name]
-            else:
-                raise ValueError(
-                    f"Parameter {param_name} must start with 'cell::' or 'environment::'"
-                )
-        
-        # Generate all combinations
+        raw_results = ParameterSweep._sweep_service.multi_parameter_sweep(
+            baseline_simulation,
+            parameters,
+        )
         results = []
-        
-        def generate_combinations(param_dict: Dict[str, List[Any]]) -> List[Dict[str, Any]]:
-            """Generate all combinations of parameter values."""
-            if not param_dict:
-                return [{}]
-            
-            items = list(param_dict.items())
-            first_name, first_values = items[0]
-            rest = {k: v for k, v in items[1:]}
-            rest_combos = generate_combinations(rest)
-            
-            combos = []
-            for value in first_values:
-                for combo in rest_combos:
-                    new_combo = {first_name: value, **combo}
-                    combos.append(new_combo)
-            return combos
-        
-        cell_combos = generate_combinations(cell_params)
-        env_combos = generate_combinations(env_params)
-        
-        total = len(cell_combos) * len(env_combos)
-        count = 0
-        
-        for cell_combo in cell_combos:
-            for env_combo in env_combos:
-                count += 1
-                if verbose:
-                    print(f"  [{count}/{total}] ", end="", flush=True)
-                    for k, v in {**cell_combo, **env_combo}.items():
-                        print(f"{k}={v} ", end="", flush=True)
-                    print("...", end=" ", flush=True)
-                
-                # Build modified simulation
-                modified_cell = (
-                    replace(baseline_simulation.cell, **cell_combo)
-                    if cell_combo else baseline_simulation.cell
+
+        for index, (parameter_dict, result, cell_overrides, env_overrides) in enumerate(raw_results, start=1):
+            if verbose:
+                print(f"  [{index}/{len(raw_results)}] ", end="", flush=True)
+                for key, value in parameter_dict.items():
+                    print(f"{key}={value} ", end="", flush=True)
+                print("... Done")
+
+            results.append(
+                (
+                    parameter_dict,
+                    result,
+                    ParameterOverride(
+                        cell_parameters=cell_overrides,
+                        environment_parameters=env_overrides,
+                    ),
                 )
-                modified_env = (
-                    replace(baseline_simulation.environment, **env_combo)
-                    if env_combo else baseline_simulation.environment
-                )
-                modified_sim = replace(
-                    baseline_simulation,
-                    cell=modified_cell,
-                    environment=modified_env
-                )
-                
-                # Run simulation
-                result = modified_sim.run()
-                
-                # Track overrides
-                override = ParameterOverride(
-                    cell_parameters=cell_combo,
-                    environment_parameters=env_combo
-                )
-                
-                results.append(
-                    ({**cell_combo, **env_combo}, result, override)
-                )
-                
-                if verbose:
-                    print("Done")
-        
+            )
+
         return results
 
     @staticmethod
     def analyze_sensitivity(
         sweep_results: List[SweepResult],
-        metric_func: Callable[[Result], float],
+        metric_func: Callable[[SimulationRun], float],
         metric_name: str = "Metric",
     ) -> Dict[str, Any]:
         """
@@ -319,7 +249,7 @@ class ParameterSweep:
         
         Args:
             sweep_results: List of SweepResult from a sweep
-            metric_func: Function that extracts a metric from Result
+            metric_func: Function that extracts a metric from SimulationRun
             metric_name: Human-readable metric name
             
         Returns:

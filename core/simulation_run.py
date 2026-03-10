@@ -4,19 +4,18 @@ SimulationRun: Complete wrapper combining Result with Metadata, Errors, and Diag
 
 **The Big Picture**:
     A SimulationRun is the COMPLETE OUTPUT of a single battery simulation.
-    
-    Before B11:
-        simulation.run() → Result (just numbers)
-    
-    After B11:
-        simulation.run() → SimulationRun (complete story!)
-            ├─ result: Result (numbers from cell model)
+
+    The canonical contract is:
+        simulation.run() → SimulationRun
+            ├─ result: Result (signal payload)
             ├─ metadata: SimulationMetadata (when, how long, what config)
             ├─ errors: List[SimulationError] (what went wrong?)
             └─ diagnostics: ConvergenceDiagnostics (solver performance)
 
+    Result is part of SimulationRun, not a competing execution return type.
+
 **Key Insight**: By bundling these together, we have FULL OBSERVABILITY.
-Any simulation result can be fully debugged and reproduced.
+Any simulation run can be fully debugged and reproduced.
 
 **Example Usage**:
     run = simulation.run()
@@ -49,14 +48,14 @@ from battery_sim.core.convergence_diagnostics import ConvergenceDiagnostics
 @dataclass
 class SimulationRun:
     """
-    Complete output of a single battery simulation.
+    Canonical output of a single battery simulation.
     
     **Components**:
     
-    1. **result** (from B9)
+     1. **result**
        - All battery signals (voltage, current, efficiency, etc.)
        - All 24 derived metrics
-       - Can be used exactly like before (backward compatible!)
+         - Payload embedded in SimulationRun
     
     2. **metadata** (B11)
        - Simulation timestamp and duration
@@ -77,16 +76,16 @@ class SimulationRun:
        - Enable debugging of convergence issues
     
     **Backward Compatibility**:
-        SimulationRun can be treated as a Result in many contexts:
+        SimulationRun exposes delegation helpers for common Result accessors:
         ```python
         run = simulation.run()
         efficiency = run.result.charge_discharge_efficiency()  # Old way (still works!)
-        # All Result methods available via run.result
+        efficiency = run.charge_discharge_efficiency()  # Compatibility delegate
         ```
     """
     
     result: Result
-    """The simulation output (voltage, current, efficiency, etc.)"""
+    """Embedded signal payload for the run."""
     
     metadata: SimulationMetadata
     """When did it run? How long? What config? Convergence status?"""
@@ -225,7 +224,7 @@ class SimulationRun:
             diagnostics=diagnostics,
         )
     
-    # Convenience methods for backward compatibility with Result
+    # Compatibility delegates for code that previously consumed bare Result
     
     def get(self, signal):
         """Delegate to result.get()"""
@@ -382,8 +381,9 @@ class SimulationRun:
 def ensure_simulation_run(obj) -> SimulationRun:
     """
     Convert Result to SimulationRun or pass through if already SimulationRun.
-    
-    **Purpose**: Allow code to work with both Result and SimulationRun seamlessly.
+
+    **Purpose**: Support legacy call sites while keeping SimulationRun as the
+    canonical execution contract.
     
     **Usage**:
         # Code that might receive either type
@@ -394,7 +394,7 @@ def ensure_simulation_run(obj) -> SimulationRun:
     if isinstance(obj, SimulationRun):
         return obj
     elif isinstance(obj, Result):
-        # Convert bare Result to SimulationRun with default metadata
+        # Adapt legacy bare Result values into the canonical wrapper.
         from battery_sim.core.solver import SolverConfig
         return SimulationRun(
             result=obj,

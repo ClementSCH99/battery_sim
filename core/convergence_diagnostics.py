@@ -72,32 +72,35 @@ class ConvergenceDiagnostics:
     total_time_steps: int = 0
     """Total number of time steps computed"""
     
-    avg_newton_iterations: float = 0.0
-    """Average Newton iterations per step (computed from solver data)"""
+    avg_newton_iterations: Optional[float] = None
+    """Average Newton iterations per step when available from solver telemetry"""
     
-    max_newton_iterations: int = 0
-    """Maximum Newton iterations for any single step"""
+    max_newton_iterations: Optional[int] = None
+    """Maximum Newton iterations for any single step when available"""
     
-    min_newton_iterations: int = 0
-    """Minimum Newton iterations for any single step"""
+    min_newton_iterations: Optional[int] = None
+    """Minimum Newton iterations for any single step when available"""
     
     convergence_rate: ConvergenceRate = ConvergenceRate.UNKNOWN
     """Is convergence linear, superlinear, or quadratic?"""
     
-    final_tolerance_achieved_time: bool = True
-    """Did solver meet time-stepping tolerance? (usually True if success=True)"""
+    final_tolerance_achieved_time: Optional[bool] = None
+    """Did solver meet time-stepping tolerance when this telemetry is available?"""
     
-    final_tolerance_achieved_space: bool = True
-    """Did solver meet spatial discretization tolerance?"""
+    final_tolerance_achieved_space: Optional[bool] = None
+    """Did solver meet spatial discretization tolerance when available?"""
     
-    time_step_rejections: int = 0
-    """Number of time steps that had to be recomputed (expensive)"""
+    time_step_rejections: Optional[int] = None
+    """Number of rejected time steps when exposed by the backend"""
     
-    jacobian_updates: int = 0
-    """How many times was Jacobian matrix computed/factored? (expensive operation)"""
+    jacobian_updates: Optional[int] = None
+    """How many times the Jacobian was recomputed when exposed by the backend"""
     
     problem_description: str = ""
     """Human-readable classification: 'well-conditioned', 'moderately stiff', 'very stiff', etc."""
+
+    telemetry_status: str = "unavailable"
+    """Whether solver diagnostics are measured, estimated, or unavailable."""
     
     # Advanced diagnostics (optional)
     residual_history: List[float] = field(default_factory=list)
@@ -110,9 +113,11 @@ class ConvergenceDiagnostics:
     def create(
         cls,
         total_time_steps: int,
-        avg_newton_iterations: float = 0.0,
-        max_newton_iterations: int = 0,
-        min_newton_iterations: int = 0,
+        avg_newton_iterations: Optional[float] = None,
+        max_newton_iterations: Optional[int] = None,
+        min_newton_iterations: Optional[int] = None,
+        problem_description: Optional[str] = None,
+        telemetry_status: str = "measured",
     ) -> "ConvergenceDiagnostics":
         """
         Factory method to create diagnostics with automatic classification.
@@ -124,8 +129,11 @@ class ConvergenceDiagnostics:
                 max_newton_iterations=peak_iterations,
             )
         """
-        # Auto-classify problem stiffness
-        if avg_newton_iterations < 10:
+        if problem_description is not None:
+            problem_desc = problem_description
+        elif avg_newton_iterations is None:
+            problem_desc = "solver telemetry unavailable in current backend"
+        elif avg_newton_iterations < 10:
             problem_desc = "well-conditioned (fast solve)"
         elif avg_newton_iterations < 30:
             problem_desc = "moderately stiff"
@@ -142,6 +150,7 @@ class ConvergenceDiagnostics:
             min_newton_iterations=min_newton_iterations,
             convergence_rate=convergence,
             problem_description=problem_desc,
+            telemetry_status=telemetry_status,
         )
     
     def is_well_behaved(self) -> bool:
@@ -150,6 +159,8 @@ class ConvergenceDiagnostics:
         
         Well-behaved = avg iterations < 20, no rejections.
         """
+        if self.avg_newton_iterations is None or self.time_step_rejections is None:
+            return False
         return self.avg_newton_iterations < 20 and self.time_step_rejections == 0
     
     def is_stiff(self) -> bool:
@@ -158,7 +169,12 @@ class ConvergenceDiagnostics:
         
         Stiff = avg iterations > 30 OR max iterations > 100.
         """
-        return self.avg_newton_iterations > 30 or self.max_newton_iterations > 100
+        if self.avg_newton_iterations is None and self.max_newton_iterations is None:
+            return False
+        return (
+            (self.avg_newton_iterations is not None and self.avg_newton_iterations > 30)
+            or (self.max_newton_iterations is not None and self.max_newton_iterations > 100)
+        )
     
     def to_dict(self) -> dict:
         """Serialize to JSON-compatible dictionary."""
@@ -173,6 +189,7 @@ class ConvergenceDiagnostics:
             "time_step_rejections": self.time_step_rejections,
             "jacobian_updates": self.jacobian_updates,
             "problem_description": self.problem_description,
+            "telemetry_status": self.telemetry_status,
         }
     
     @classmethod
@@ -195,13 +212,18 @@ class ConvergenceDiagnostics:
               Convergence: QUADRATIC
               Status: No issues
         """
-        status_msg = "No issues" if self.is_well_behaved() else "Convergence challenges detected"
-        
-        iters_range = f"{self.min_newton_iterations}-{self.max_newton_iterations}"
+        if self.telemetry_status != "measured":
+            status_msg = f"Telemetry {self.telemetry_status}"
+            avg_iterations = "unavailable"
+            iters_range = "unavailable"
+        else:
+            status_msg = "No issues" if self.is_well_behaved() else "Convergence challenges detected"
+            avg_iterations = f"{self.avg_newton_iterations:.1f}"
+            iters_range = f"{self.min_newton_iterations}-{self.max_newton_iterations}"
         
         return f"""Convergence Diagnostics:
   Time Steps: {self.total_time_steps}
-  Newton Iterations: avg={self.avg_newton_iterations:.1f} (range: {iters_range})
+  Newton Iterations: avg={avg_iterations} (range: {iters_range})
   Problem: {self.problem_description}
   Convergence: {self.convergence_rate.value.upper()}
   Status: {status_msg}"""
@@ -227,6 +249,12 @@ class DiagnosticsAnalyzer:
             List of actionable messages for users
         """
         insights = []
+
+        if diag.telemetry_status != "measured":
+            insights.append(
+                "Detailed Newton iteration telemetry is unavailable in the current PyBaMM integration."
+            )
+            return insights
         
         # Check for stiffness
         if diag.is_stiff():
@@ -251,7 +279,7 @@ class DiagnosticsAnalyzer:
             )
         
         # Check for divergence
-        if diag.max_newton_iterations > 200:
+        if diag.max_newton_iterations is not None and diag.max_newton_iterations > 200:
             insights.append(
                 f"Severe convergence issue: {diag.max_newton_iterations} iterations "
                 f"in worst case step"

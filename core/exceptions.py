@@ -1,4 +1,4 @@
-# battery_sim/core/exceptions.py
+"""Canonical exception hierarchy for validation and simulation setup."""
 
 class SimulationError(Exception):
     """

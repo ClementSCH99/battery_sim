@@ -4,8 +4,9 @@ LAYER 3: RESULT FORMATTING - Dual Output (JSON + Markdown)
 TEACHING FOCUS: Serving multiple audiences
 
 WHY THIS LAYER EXISTS:
-When the LLM runs an investigation tool, it gets raw data.
-But the data needs to be presented in TWO ways:
+When the LLM runs an investigation tool, it gets structured data derived from
+SimulationRun objects.
+This layer formats those interface outputs in TWO ways:
 
 1. JSON: For the LLM to process and reason about
    - Structured
@@ -19,9 +20,15 @@ But the data needs to be presented in TWO ways:
    - formatted, not raw numbers
    - Easy to put in reports
 
-DESIGN PRINCIPLE: Every result should be immediately useful to BOTH audiences.
+DESIGN PRINCIPLE: Every tool output should be immediately useful to BOTH audiences.
 The LLM can parse the JSON for reasoning.
 The engineer can read the Markdown for insights.
+
+This module does not define the runtime execution contract.
+Simulation.run() canonically returns SimulationRun; formatting happens after that.
+Runtime time-series signals use the canonical Signal vocabulary (`voltage`,
+`current`, `soc`, `temperature`, etc.), while formatter outputs may also expose
+derived summary metrics such as `peak_power_W`.
 
 ---
 
@@ -73,12 +80,16 @@ import json
 @dataclass(frozen=True)
 class DualFormatResult:
     """
-    A result that can be consumed by both LLM and humans.
+    Interface-layer tool output consumable by both LLM and humans.
     
     TEACHING: This is the key insight of Layer 3.
     Every tool returns a result that contains BOTH:
     - json_data: Machine-readable (for reasoning)
     - markdown_text: Human-readable (for communication)
+
+    This is separate from the canonical runtime output.
+    Simulation executions return SimulationRun, and formatters consume data
+    derived from those runs.
     
     The LLM processes json_data.
     The engineer reads markdown_text.
@@ -110,7 +121,7 @@ class DualFormatResult:
         return "\n".join(lines)
     
     def summary(self) -> str:
-        """One-liner summary of the result."""
+        """One-line summary of the formatted tool output."""
         # Look for 'summary' key in JSON
         if 'summary' in self.json_data:
             return self.json_data['summary']

@@ -10,10 +10,10 @@ Layer 5 is the front door. It provides:
 1. A clean Python API that the LLM calls
 2. Built-in session management
 3. Tool decorators (for MCP / Claude integration)
-4. Result formatting (automatic JSON + Markdown)
+4. Tool output formatting (automatic JSON + Markdown)
 
 The LLM says: "I want to compare presets"
-AgentAPI handles: creating simulations, running them, formatting results
+AgentAPI handles: creating simulations, running them, and formatting SimulationRun-derived tool outputs
 
 KEY DESIGN: Every method is designed to be a "tool" that an LLM can discover and call.
 
@@ -28,34 +28,35 @@ tools = api.get_available_tools()
 # Returns descriptions of what the API can do
 
 # LLM calls a tool
-result = api.compare_presets(['LFP_5AH', 'NMC_5AH'])
+tool_output = api.compare_presets(['LFP_5AH', 'NMC_5AH'])
 
-# Result is automatically formatted
-print(result.json_data)        # For LLM processing
-print(result.markdown_text)    # For engineer reading
+# Tool output is automatically formatted
+print(tool_output.json_data)        # For LLM processing
+print(tool_output.markdown_text)    # For engineer reading
 
 # Session tracks everything
 print(api.session.get_reasoning_chain())
 
 The AgentAPI is the bridge between:
 - LLM (which calls methods) 
-- Simulation infrastructure (which runs batteries)
+- Simulation infrastructure (which returns SimulationRun objects)
 - Session tracking (which remembers)
-- Result formatting (which presents data)
+- Tool output formatting (which presents data)
+
+Underlying simulation executions still return SimulationRun. AgentAPI methods
+package those runs into DualFormatResult values for interface consumption.
 """
 
 from dataclasses import dataclass
 from typing import Dict, List, Any, Optional, Callable
 import time
 
+from battery_sim.core.application_services import ComparisonService
+from battery_sim.core.application_services import SensitivityService
 from battery_sim.core.api_schema import APISchema
 from battery_sim.core.investigation_tools import (
-    BatchSimulator,
     BatchSimulationConfig,
-    SimulationComparison,
-    SensitivityAnalyzer,
     ConstraintChecker,
-    ParameterExplorer,
 )
 from battery_sim.core.result_formatter import (
     DualFormatResult,
@@ -113,6 +114,8 @@ class AgentAPI:
     4. Save work (save_session)
     
     The API is stateful (maintains a session) so investigations build on each other.
+    Investigation methods return DualFormatResult values built from canonical
+    SimulationRun execution outputs.
     """
     
     def __init__(
@@ -142,6 +145,8 @@ class AgentAPI:
         ])
         self.default_model = default_model
         self.default_solver_config = default_solver_config or SolverConfig()
+        self.comparison_service = ComparisonService()
+        self.sensitivity_service = SensitivityService()
     
     # ========================================================================
     # DISCOVERY: What can I do?
@@ -158,84 +163,7 @@ class AgentAPI:
             List of tool descriptions (suitable for Claude's tool_use)
         """
         
-        tools = []
-        
-        # Introspection methods
-        tools.append({
-            'name': 'describe_api',
-            'description': 'Get a human-readable description of the entire API',
-            'parameters': {},
-        })
-        
-        tools.append({
-            'name': 'list_presets',
-            'description': 'List all available cell chemistry presets',
-            'parameters': {
-                'chemistry': {'type': 'string', 'description': 'Filter by chemistry (optional)'}
-            },
-        })
-        
-        # Investigation tools
-        tools.append({
-            'name': 'compare_presets',
-            'description': 'Compare multiple cell chemistry presets side-by-side',
-            'parameters': {
-                'preset_names': {
-                    'type': 'array',
-                    'items': {'type': 'string'},
-                    'description': 'List of preset names to compare',
-                },
-                'environment_temp_C': {
-                    'type': 'number',
-                    'description': 'Operating temperature (default 25°C)',
-                    'optional': True,
-                },
-            },
-        })
-        
-        tools.append({
-            'name': 'sensitivity_analysis',
-            'description': 'Analyze how parameters affect battery performance',
-            'parameters': {
-                'preset_name': {
-                    'type': 'string',
-                    'description': 'Cell chemistry to analyze',
-                },
-                'parameters': {
-                    'type': 'array',
-                    'items': {'type': 'string'},
-                    'description': 'Parameters to analyze (e.g., [temperature_C, nominal_capacity_Ah])',
-                },
-            },
-        })
-        
-        tools.append({
-            'name': 'check_feasibility',
-            'description': 'Check if a cell/environment combination is physically feasible',
-            'parameters': {
-                'preset_name': {'type': 'string', 'description': 'Cell preset'},
-                'temperature_C': {'type': 'number', 'description': 'Operating temperature'},
-            },
-        })
-        
-        tools.append({
-            'name': 'save_session',
-            'description': 'Save the current investigation session to a file',
-            'parameters': {
-                'filepath': {
-                    'type': 'string',
-                    'description': 'Path to save session JSON (e.g., investigation.json)',
-                },
-            },
-        })
-        
-        tools.append({
-            'name': 'get_session_summary',
-            'description': 'Get a summary of investigations run in this session',
-            'parameters': {},
-        })
-        
-        return tools
+        return self.schema.get_tools()
     
     # ========================================================================
     # INTROSPECTION TOOLS
@@ -319,8 +247,8 @@ class AgentAPI:
                     'chemistry': p.chemistry,
                     'description': p.description,
                     'capacity_Ah': p.cell.nominal_capacity_Ah,
-                    'voltage_V': p.cell.nominal_voltage_V,
-                    'ir_Ohm': p.cell.internal_resistance_Ohm,
+                    'nominal_voltage_V': p.cell.nominal_voltage_V,
+                    'internal_resistance_Ohm': p.cell.internal_resistance_Ohm,
                 }
                 for p in presets.values()
             ]
@@ -362,7 +290,7 @@ class AgentAPI:
         
         Args:
             preset_names: List of preset names
-            environment_temp_C: Operating temperature (default 25°C)
+            environment_temp_C: Ambient temperature around the cell (default 25°C)
         
         Returns:
             DualFormatResult with comparison
@@ -382,11 +310,7 @@ class AgentAPI:
             solver_config=self.default_solver_config,
         )
         
-        # Run batch simulations
-        results = BatchSimulator.run_presets(preset_names, config)
-        
-        # Compare results
-        comparison = SimulationComparison.compare_batch_results(results)
+        comparison = self.comparison_service.compare_presets(preset_names, config)
         
         # Format results
         formatted = ComparisonFormatter.format_comparison(
@@ -400,7 +324,7 @@ class AgentAPI:
             investigation_type='compare_presets',
             parameters={
                 'presets': preset_names,
-                'temperature_C': environment_temp_C or 25.0,
+                'ambient_temperature_C': environment_temp_C or 25.0,
             },
             result_summary=formatted.json_data,
             result_markdown=formatted.markdown_text,
@@ -468,12 +392,12 @@ class AgentAPI:
                         return 0.0
                 return 0.0
             
-            result = SensitivityAnalyzer.analyze_single_parameter(
+            result = self.sensitivity_service.analyze_single_parameter(
                 baseline_cell,
                 param,
                 parameter_ranges[param],
                 config,
-                metric_extractor=make_metric_extractor,
+                make_metric_extractor,
             )
             sensitivity_results.append(result)
         
@@ -512,7 +436,7 @@ class AgentAPI:
         
         Args:
             preset_name: Cell chemistry
-            temperature_C: Operating temperature
+            temperature_C: Ambient temperature around the cell
         
         Returns:
             DualFormatResult with feasibility report
@@ -532,7 +456,7 @@ class AgentAPI:
         json_data = {
             'type': 'feasibility_check',
             'preset': preset_name,
-            'temperature_C': temperature_C,
+            'ambient_temperature_C': temperature_C,
             'feasible': is_feasible,
             'critical_violations': [v.message for v in violations if v.severity == 'critical'],
             'warnings': [v.message for v in violations if v.severity == 'warning'],

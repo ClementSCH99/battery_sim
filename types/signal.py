@@ -2,7 +2,9 @@
 
 from enum import Enum
 
-class Signal(Enum):
+class Signal(str, Enum):
+    """Canonical runtime signal vocabulary exposed through Result."""
+
     # Primary electrical signals
     TIME = "time"
     VOLTAGE = "voltage"
