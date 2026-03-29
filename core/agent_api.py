@@ -51,7 +51,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Any, Optional, Callable
 import time
 
-from battery_sim.core.application_services import ComparisonService
+from battery_sim.core.application_services import ComparisonService, SimulationExecutionService
 from battery_sim.core.application_services import SensitivityService
 from battery_sim.core.api_schema import APISchema
 from battery_sim.core.investigation_tools import (
@@ -69,6 +69,7 @@ from battery_sim.core.cell import Cell
 from battery_sim.core.model import Model
 from battery_sim.core.protocol import Protocol, ConstantCurrent, Rest
 from battery_sim.core.environment import Environment
+from battery_sim.core.simulation import Simulation
 from battery_sim.core.solver import SolverConfig
 from battery_sim.backend.pybamm_backend import PyBaMMBackend
 
@@ -105,18 +106,17 @@ def agent_tool(
 # ============================================================================
 
 class AgentAPI:
-    """
-    Main API for LLM-driven battery simulation investigation.
-    
-    TEACHING: This is the control center. An LLM uses AgentAPI to:
-    1. Learn what's possible (get_available_tools)
-    2. Run investigations (compare_presets, etc.)
-    3. Track progress (session)
-    4. Save work (save_session)
-    
-    The API is stateful (maintains a session) so investigations build on each other.
-    Investigation methods return DualFormatResult values built from canonical
-    SimulationRun execution outputs.
+    """High-level, LLM-friendly API for battery simulation investigations.
+
+    Stateful: maintains a ``SimulationSession`` that records every investigation.
+    Every tool method returns a ``DualFormatResult`` (JSON + Markdown).
+
+    Core tools:
+        list_presets, run_simulation, compare_presets,
+        sensitivity_analysis, check_feasibility.
+
+    Session tools:
+        get_session_summary, get_reasoning_chain, save_session.
     """
     
     def __init__(
@@ -477,6 +477,103 @@ class AgentAPI:
             ],
         )
     
+    @agent_tool(
+        description="Run a single battery simulation and return performance metrics",
+        examples=["Run a simulation with LFP_5AH", "Simulate NMC_5AH at 40°C"]
+    )
+    def run_simulation(
+        self,
+        preset_name: str,
+        current_A: Optional[float] = None,
+        duration_s: Optional[float] = None,
+        temperature_C: float = 25.0,
+    ) -> DualFormatResult:
+        """
+        Run a single battery simulation and return key performance metrics.
+
+        Args:
+            preset_name: Cell chemistry preset name (e.g. 'LFP_5AH')
+            current_A: Discharge current in Amps (defaults to protocol default)
+            duration_s: Simulation duration in seconds (defaults to protocol default)
+            temperature_C: Ambient temperature in °C (default 25)
+
+        Returns:
+            DualFormatResult with simulation metrics
+        """
+        start_time = time.time()
+
+        cell = Cell.preset(preset_name)
+
+        if current_A is not None or duration_s is not None:
+            protocol = Protocol(steps=[
+                ConstantCurrent(
+                    current_A=current_A or self.default_protocol.steps[0].current_A,
+                    _duration_s=duration_s or self.default_protocol.steps[0]._duration_s,
+                ),
+            ])
+        else:
+            protocol = self.default_protocol
+
+        environment = Environment(temperature_C=temperature_C)
+        simulation = Simulation(
+            cell=cell,
+            model=self.default_model,
+            protocol=protocol,
+            environment=environment,
+            solver_config=self.default_solver_config,
+        )
+
+        execution_service = SimulationExecutionService(backend=self._backend)
+        run = execution_service.execute(simulation)
+
+        metrics = ComparisonService.extract_metrics(run)
+
+        json_data = {
+            'type': 'simulation_result',
+            'preset': preset_name,
+            'temperature_C': temperature_C,
+            'metrics': metrics,
+        }
+
+        md_lines = [
+            f"# Simulation Result: {preset_name}",
+            "",
+            f"**Temperature**: {temperature_C}°C",
+            "",
+            "| Metric | Value |",
+            "|--------|-------|",
+        ]
+        for key, value in metrics.items():
+            if isinstance(value, float):
+                md_lines.append(f"| {key} | {value:.4f} |")
+            else:
+                md_lines.append(f"| {key} | {value} |")
+
+        duration = time.time() - start_time
+
+        self.session.record_investigation(
+            investigation_type='run_simulation',
+            parameters={
+                'preset': preset_name,
+                'current_A': current_A,
+                'duration_s': duration_s,
+                'temperature_C': temperature_C,
+            },
+            result_summary=json_data,
+            result_markdown="\n".join(md_lines),
+            duration_seconds=duration,
+            key_findings=[],
+        )
+
+        return DualFormatResult(
+            json_data=json_data,
+            markdown_text="\n".join(md_lines),
+            interpretation_hints=[
+                "Review peak_power_W and efficiency_percent for overall performance",
+                "Compare with other presets using compare_presets for context",
+            ],
+        )
+
     # ========================================================================
     # SESSION MANAGEMENT
     # ========================================================================

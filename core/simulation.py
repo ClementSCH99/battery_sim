@@ -1,6 +1,6 @@
 # battery_sim/core/simulation.py
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from battery_sim.core.simulation_run import SimulationRun
@@ -11,15 +11,23 @@ from battery_sim.core.model import Model
 from battery_sim.core.protocol import Protocol
 from battery_sim.core.environment import Environment
 from battery_sim.core.solver import SolverConfig
+from battery_sim.core.degradation import DegradationConfig
 
 
 @dataclass(frozen=True)
 class Simulation:
+    """Fully specified simulation request (cell + model + protocol + environment).
+
+    Call ``run(backend)`` to execute and obtain a ``SimulationRun``.
+    Call ``validate()`` to check parameter consistency without executing.
+    """
+
     cell: Cell
     model: Model
     protocol: Protocol
     environment: Environment
     solver_config: SolverConfig = field(default_factory=SolverConfig)
+    degradation: Optional[DegradationConfig] = None
 
     def run(self, backend: "SimulationBackend", **solver_options) -> "SimulationRun":
         """
@@ -46,6 +54,8 @@ class Simulation:
         self.protocol.validate()
         self.environment.validate()
         self.solver_config.validate()
+        if self.degradation is not None:
+            self.degradation.validate()
 
         
         

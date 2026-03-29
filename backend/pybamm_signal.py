@@ -18,6 +18,12 @@ PYBAMM_SIGNAL_MAP = {
     Signal.CATHODE_POTENTIAL: ("Positive electrode potential [V]", "V"),
     Signal.OVERPOTENTIAL: ("Overpotential [V]", "V"),
     Signal.ELECTROLYTE_CONCENTRATION: ("Electrolyte concentration [mol.m-3]", "mol.m-3"),
+
+    # Degradation signals (available when degradation sub-models are active)
+    Signal.SEI_THICKNESS: ("X-averaged negative SEI thickness [m]", "m"),
+    Signal.LITHIUM_PLATING_CAPACITY: ("Loss of capacity to negative lithium plating [A.h]", "A.h"),
+    Signal.LOSS_OF_ACTIVE_MATERIAL: ("Loss of active material in negative electrode [%]", "%"),
+    Signal.TOTAL_CAPACITY_LOSS: ("Total capacity lost to side reactions [A.h]", "A.h"),
 }
 
 # Alternative PyBaMM signal names for some canonical runtime signals.
@@ -39,4 +45,9 @@ DERIVED_SIGNALS = {
     Signal.CAPACITY_FADE: ("capacity_fade", "%"),  # relative to initial
     Signal.INTERNAL_RESISTANCE: ("internal_resistance", "Ω"),  # V / I
     Signal.EFFICIENCY: ("efficiency", "%"),  # round-trip
+    # Cycling signals (per-cycle, time axis = cycle number)
+    Signal.CYCLE_DISCHARGE_CAPACITY: ("cycle_discharge_capacity", "Ah"),
+    Signal.CYCLE_CHARGE_CAPACITY: ("cycle_charge_capacity", "Ah"),
+    Signal.CYCLE_COULOMBIC_EFFICIENCY: ("cycle_coulombic_efficiency", "%"),
+    Signal.CYCLE_CAPACITY_RETENTION: ("cycle_capacity_retention", "%"),
 }

@@ -58,6 +58,29 @@ print(Cell.list_presets())
 #  'NMC_10AH', 'LMNO_4AH', 'NMC_HE_50AH', 'LFP_HP_20AH']
 ```
 
+### CC-CV Charge
+
+```python
+from battery_sim.core.protocol import Protocol
+
+protocol = Protocol.cccv(
+    charge_current_A=2.5,     # CC phase at 0.5C
+    cutoff_voltage_V=4.2,     # Switch to CV at 4.2 V
+    taper_current_A=0.25,     # End when current drops to 0.25 A
+)
+```
+
+### MCP Server (LLM integration)
+
+`battery_sim` ships an MCP server so LLM tools (VS Code Copilot, Claude Desktop)
+can run simulations directly. See the [MCP Setup Guide](docs/mcp_setup.md) for
+configuration instructions.
+
+## Documentation
+
+- **[Usage Guide](docs/usage_guide.md)** — Full tutorial: protocols, comparisons, sweeps, plotting
+- **[MCP Setup Guide](docs/mcp_setup.md)** — Connect battery_sim to VS Code Copilot or Claude Desktop
+
 ## Architecture
 
 The codebase follows a clean layered architecture: domain objects (`Cell`, `Protocol`, `Simulation`) contain no infrastructure dependencies, application services orchestrate use cases, and the PyBaMM backend sits behind an abstract port. See [docs/audit/01_target_architecture.md](docs/audit/01_target_architecture.md) for the full architecture reference.

@@ -6,6 +6,7 @@ from battery_sim.core.cell import Cell
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.simulation_run import SimulationRun
 from battery_sim.core.simulation_backend import SimulationBackend
+from battery_sim.types.signal import Signal
 
 
 class SimulationExecutionService:
@@ -420,3 +421,63 @@ class SensitivityService:
             range_value=range_val,
             sensitivity_coefficient=sensitivity_coeff,
         )
+
+
+class CyclingAnalyzer:
+    """Extract cycling performance trends from multi-cycle SimulationRuns."""
+
+    @staticmethod
+    def capacity_fade_rate(run: SimulationRun) -> Optional[float]:
+        """Capacity fade per cycle (Ah/cycle) from linear fit.
+
+        Returns None if cycling signals are unavailable or there are fewer
+        than 2 data points.
+        """
+        ts = run.result._data.get(Signal.CYCLE_DISCHARGE_CAPACITY)
+        if ts is None or len(ts.values) < 2:
+            return None
+        import numpy as _np
+        cycles = _np.array(ts.time_s)
+        caps = _np.array(ts.values)
+        coeffs = _np.polyfit(cycles, caps, 1)
+        return float(coeffs[0])  # slope = Ah per cycle
+
+    @staticmethod
+    def end_of_life_prediction(run: SimulationRun, eol_threshold: float = 0.8) -> Optional[int]:
+        """Predict cycle number where capacity drops below *eol_threshold* of initial.
+
+        Returns None if cycling data is unavailable or capacity is not declining.
+        """
+        ts = run.result._data.get(Signal.CYCLE_DISCHARGE_CAPACITY)
+        if ts is None or len(ts.values) < 2:
+            return None
+        import numpy as _np
+        cycles = _np.array(ts.time_s)
+        caps = _np.array(ts.values)
+        coeffs = _np.polyfit(cycles, caps, 1)
+        slope, intercept = coeffs
+        if slope >= 0:
+            return None  # capacity not declining
+        threshold_cap = caps[0] * eol_threshold
+        # slope*n + intercept = threshold_cap  =>  n = (threshold_cap - intercept) / slope
+        eol_cycle = (threshold_cap - intercept) / slope
+        return max(int(_np.ceil(eol_cycle)), 1)
+
+    @staticmethod
+    def cycling_summary(run: SimulationRun) -> Dict[str, Any]:
+        """Per-cycle summary: capacity, efficiency, retention.
+
+        Returns a dict with lists keyed by metric name, or an empty dict if
+        cycling signals are missing.
+        """
+        summary: Dict[str, Any] = {}
+        for sig, key in [
+            (Signal.CYCLE_DISCHARGE_CAPACITY, "discharge_capacity_Ah"),
+            (Signal.CYCLE_CHARGE_CAPACITY, "charge_capacity_Ah"),
+            (Signal.CYCLE_COULOMBIC_EFFICIENCY, "coulombic_efficiency_pct"),
+            (Signal.CYCLE_CAPACITY_RETENTION, "capacity_retention_pct"),
+        ]:
+            ts = run.result._data.get(sig)
+            if ts is not None:
+                summary[key] = ts.values
+        return summary

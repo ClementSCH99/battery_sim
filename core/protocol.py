@@ -38,8 +38,25 @@ class CC_CV(Step):
 
 
 @dataclass(frozen=True)
+class CycleDefinition:
+    """One charge-discharge cycle definition."""
+    charge: "Protocol"
+    discharge: "Protocol"
+    rest_after_charge_s: float = 600.0
+    rest_after_discharge_s: float = 600.0
+
+
+@dataclass(frozen=True)
 class Protocol:
+    """Ordered sequence of electrochemical steps to apply to a cell.
+
+    Factories: ``cc()``, ``rest()``, ``cccv()``, ``cycle()``, ``experiment()``.
+    Protocols can be combined with ``+`` to create multi-step sequences.
+    """
+
     steps: List[Step]
+    n_cycles: Optional[int] = None
+    cycle_definition: Optional[CycleDefinition] = None
 
     def __add__(self, other):
         if not isinstance(other, Protocol):
@@ -109,3 +126,37 @@ class Protocol:
     @staticmethod
     def experiment(steps: List[Step]) -> "Protocol":
         return Protocol(steps)
+
+    @classmethod
+    def cycle(
+        cls,
+        charge: "Protocol",
+        discharge: "Protocol",
+        n_cycles: int = 1,
+        rest_s: float = 600.0,
+    ) -> "Protocol":
+        """Create a cycling protocol: (charge + rest + discharge + rest) x n_cycles.
+
+        The cycle structure is preserved as metadata so the backend can use
+        native cycle support (e.g. PyBaMM experiment repetition).
+        """
+        if n_cycles < 1:
+            raise ProtocolValidationError("n_cycles must be >= 1")
+        cycle_def = CycleDefinition(
+            charge=charge,
+            discharge=discharge,
+            rest_after_charge_s=rest_s,
+            rest_after_discharge_s=rest_s,
+        )
+        # Build flat steps for one cycle (used as fallback / duration estimation)
+        one_cycle_steps: List[Step] = list(charge.steps)
+        if rest_s > 0:
+            one_cycle_steps.append(Rest(rest_s))
+        one_cycle_steps.extend(discharge.steps)
+        if rest_s > 0:
+            one_cycle_steps.append(Rest(rest_s))
+        return cls(
+            steps=one_cycle_steps,
+            n_cycles=n_cycles,
+            cycle_definition=cycle_def,
+        )

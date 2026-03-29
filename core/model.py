@@ -5,12 +5,14 @@ class Model(str, Enum):
     """Canonical public battery model choices."""
 
     SPM = "single_particle"
+    SPMe = "single_particle_electrolyte"
     DFN = "doyle_fuller_newman"
 
     @property
     def label(self) -> str:
         labels = {
             Model.SPM: "Single Particle Model (SPM)",
+            Model.SPMe: "Single Particle Model with Electrolyte (SPMe)",
             Model.DFN: "Doyle-Fuller-Newman Model (DFN)",
         }
         return labels[self]
@@ -22,6 +24,8 @@ class Model(str, Enum):
             "spm": cls.SPM,
             "single_particle": cls.SPM,
             "single_particule": cls.SPM,
+            "spme": cls.SPMe,
+            "single_particle_electrolyte": cls.SPMe,
             "dfn": cls.DFN,
             "doyle_fuller_newman": cls.DFN,
         }

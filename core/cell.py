@@ -9,6 +9,12 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class Cell:
+    """Immutable battery cell specification.
+
+    Use ``Cell.preset(name)`` for built-in chemistries or construct directly.
+    Call ``Cell.list_presets()`` to see available preset names.
+    """
+
     chemistry: str
 
     # Electical parameters

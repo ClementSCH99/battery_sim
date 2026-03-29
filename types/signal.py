@@ -31,3 +31,15 @@ class Signal(str, Enum):
     # Performance metrics
     INTERNAL_RESISTANCE = "internal_resistance"
     EFFICIENCY = "efficiency"
+
+    # Degradation signals
+    SEI_THICKNESS = "sei_thickness"
+    LITHIUM_PLATING_CAPACITY = "lithium_plating_capacity"
+    LOSS_OF_ACTIVE_MATERIAL = "loss_of_active_material"
+    TOTAL_CAPACITY_LOSS = "total_capacity_loss"
+
+    # Cycling signals (time axis = cycle number)
+    CYCLE_DISCHARGE_CAPACITY = "cycle_discharge_capacity"
+    CYCLE_CHARGE_CAPACITY = "cycle_charge_capacity"
+    CYCLE_COULOMBIC_EFFICIENCY = "cycle_coulombic_efficiency"
+    CYCLE_CAPACITY_RETENTION = "cycle_capacity_retention"

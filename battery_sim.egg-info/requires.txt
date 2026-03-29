@@ -1,6 +1,0 @@
-pybamm
-numpy
-
-[dev]
-pytest
-matplotlib

@@ -11,7 +11,7 @@ from battery_sim.core.environment import Environment
 from battery_sim.core.model import Model
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.simulation_backend import SimulationBackend
-from battery_sim.core.protocol import Protocol, ConstantCurrent, Rest, CC_CV
+from battery_sim.core.protocol import Protocol, ConstantCurrent, Rest, CC_CV, CycleDefinition
 from battery_sim.core.result import Result
 from battery_sim.core.solver import Solver, SolverConfig
 from battery_sim.types.timeseries import TimeSeries
@@ -29,10 +29,10 @@ _SOLVER_REGISTRY: dict[Solver, Type[pybamm.BaseSolver]] = {
 }
 
 
-def translate_protocol_to_pybamm(protocol: Protocol) -> list[str]:
-    """Convert domain protocol steps to PyBaMM experiment strings."""
+def _translate_steps_to_pybamm(steps) -> list[str]:
+    """Convert a list of domain Step objects to PyBaMM experiment strings."""
     strings: list[str] = []
-    for step in protocol.steps:
+    for step in steps:
         if isinstance(step, ConstantCurrent):
             if step.current_A > 0:
                 strings.append(f"Discharge at {step.current_A} A for {step._duration_s} seconds")
@@ -46,6 +46,26 @@ def translate_protocol_to_pybamm(protocol: Protocol) -> list[str]:
     return strings
 
 
+def translate_protocol_to_pybamm(protocol: Protocol) -> list[str]:
+    """Convert domain protocol to PyBaMM experiment strings.
+
+    If the protocol carries cycle metadata, one cycle's steps are built from
+    the CycleDefinition and then repeated ``n_cycles`` times.
+    """
+    if protocol.cycle_definition is not None and protocol.n_cycles is not None:
+        cd = protocol.cycle_definition
+        one_cycle: list[str] = []
+        one_cycle.extend(_translate_steps_to_pybamm(cd.charge.steps))
+        if cd.rest_after_charge_s > 0:
+            one_cycle.append(f"Rest for {cd.rest_after_charge_s} seconds")
+        one_cycle.extend(_translate_steps_to_pybamm(cd.discharge.steps))
+        if cd.rest_after_discharge_s > 0:
+            one_cycle.append(f"Rest for {cd.rest_after_discharge_s} seconds")
+        return one_cycle * protocol.n_cycles
+
+    return _translate_steps_to_pybamm(protocol.steps)
+
+
 class PyBaMMBackend(SimulationBackend):
 
     def run(self, simulation: Simulation, **kwargs) -> SimulationRun:
@@ -55,7 +75,7 @@ class PyBaMMBackend(SimulationBackend):
         This method orchestrates the simulation workflow without handling details.
         """
         solution, elapsed_seconds = self._execute_simulation(simulation, **kwargs)
-        result = self._extract_result(solution)
+        result = self._extract_result(solution, protocol=simulation.protocol)
         observability = self._build_observability_data(result, solution, simulation, elapsed_seconds)
         
         return SimulationRun(
@@ -72,7 +92,7 @@ class PyBaMMBackend(SimulationBackend):
         Returns:
             (solution, elapsed_seconds): PyBaMM solution object and wall-clock time
         """
-        model = self._build_model(simulation.model, simulation.environment)
+        model = self._build_model(simulation.model, simulation.environment, simulation.degradation)
         experiment = self._build_experiment(simulation)
         solver = self._build_solver(simulation.solver_config)
         parameters = self._build_parameters(simulation.cell, simulation.environment)
@@ -91,7 +111,7 @@ class PyBaMMBackend(SimulationBackend):
         
         return solution, elapsed_seconds
     
-    def _extract_result(self, solution) -> Result:
+    def _extract_result(self, solution, protocol: Protocol = None) -> Result:
         """
         Extract Result object from PyBaMM solution.
         
@@ -248,9 +268,78 @@ class PyBaMMBackend(SimulationBackend):
                 values=resistance.tolist(),
                 unit="Ω"
             )
+
+        # --- Per-cycle metric extraction ---
+        if (protocol is not None
+                and protocol.n_cycles is not None
+                and protocol.n_cycles > 1
+                and Signal.CURRENT in data
+                and Signal.VOLTAGE in data):
+            self._extract_cycling_signals(data, time_list, protocol)
         
         return Result(data)
     
+    def _extract_cycling_signals(self, data: dict, time_list: list, protocol: Protocol) -> None:
+        """Compute per-cycle discharge capacity, charge capacity, coulombic efficiency, and capacity retention."""
+        n_cycles = protocol.n_cycles
+        time_arr = np.array(time_list)
+        current_arr = np.array(data[Signal.CURRENT].values)
+        voltage_arr = np.array(data[Signal.VOLTAGE].values)
+        dt = np.diff(time_arr)
+
+        # Split time series into n_cycles equal-length segments
+        total_points = len(time_arr)
+        cycle_indices = np.array_split(np.arange(total_points), n_cycles)
+
+        cycle_numbers: list[float] = []
+        discharge_caps: list[float] = []
+        charge_caps: list[float] = []
+        efficiencies: list[float] = []
+
+        for cycle_num, indices in enumerate(cycle_indices, start=1):
+            if len(indices) < 2:
+                continue
+            i_start = indices[0]
+            i_end = indices[-1]
+            seg_current = current_arr[i_start:i_end + 1]
+            seg_dt = dt[i_start:min(i_end, len(dt))]
+            points = min(len(seg_current) - 1, len(seg_dt))
+
+            disch_cap = 0.0
+            chg_cap = 0.0
+            for j in range(points):
+                amp_hours = abs(seg_current[j]) * seg_dt[j] / 3600.0
+                if seg_current[j] > 0:  # discharge
+                    disch_cap += amp_hours
+                elif seg_current[j] < 0:  # charge
+                    chg_cap += amp_hours
+
+            cycle_numbers.append(float(cycle_num))
+            discharge_caps.append(disch_cap)
+            charge_caps.append(chg_cap)
+            eff = (disch_cap / chg_cap * 100.0) if chg_cap > 0 else 0.0
+            efficiencies.append(eff)
+
+        if not cycle_numbers:
+            return
+
+        # Capacity retention relative to first cycle
+        first_cap = discharge_caps[0] if discharge_caps[0] > 0 else 1.0
+        retentions = [(cap / first_cap) * 100.0 for cap in discharge_caps]
+
+        data[Signal.CYCLE_DISCHARGE_CAPACITY] = TimeSeries(
+            time_s=cycle_numbers, values=discharge_caps, unit="Ah"
+        )
+        data[Signal.CYCLE_CHARGE_CAPACITY] = TimeSeries(
+            time_s=cycle_numbers, values=charge_caps, unit="Ah"
+        )
+        data[Signal.CYCLE_COULOMBIC_EFFICIENCY] = TimeSeries(
+            time_s=cycle_numbers, values=efficiencies, unit="%"
+        )
+        data[Signal.CYCLE_CAPACITY_RETENTION] = TimeSeries(
+            time_s=cycle_numbers, values=retentions, unit="%"
+        )
+
     def _extract_solution_telemetry(self, solution, elapsed_seconds: float) -> dict:
         termination = str(getattr(solution, "termination", "unknown"))
         termination_text = termination.strip() or "unknown"
@@ -304,7 +393,7 @@ class PyBaMMBackend(SimulationBackend):
             'diagnostics': diagnostics,
         }
 
-    def _build_model(self, model: Model, environment: Environment) -> pybamm.lithium_ion.BaseModel:
+    def _build_model(self, model: Model, environment: Environment, degradation=None) -> pybamm.lithium_ion.BaseModel:
         options = {}
         
         if environment.convection_W_per_m2K is not None:
@@ -314,12 +403,23 @@ class PyBaMMBackend(SimulationBackend):
             # "lumped" → 1 température cellule
             # "x-lumped" / "x-full" → spatial 
             
+        # Map domain-level degradation booleans to PyBaMM option strings
+        if degradation is not None:
+            if degradation.sei_growth:
+                options["SEI"] = "ec reaction limited"
+            if degradation.lithium_plating:
+                options["lithium plating"] = "irreversible"
+            if degradation.active_material_loss:
+                options["loss of active material"] = "stress-driven"
 
         if model == Model.SPM:
-            return pybamm.lithium_ion.SPM(options=options)
+            return pybamm.lithium_ion.SPM(options=options or None)
+        
+        elif model == Model.SPMe:
+            return pybamm.lithium_ion.SPMe(options=options or None)
         
         elif model == Model.DFN:
-            return pybamm.lithium_ion.DFN(options=options)
+            return pybamm.lithium_ion.DFN(options=options or None)
         
         else:
             raise ValueError(f"Unsupported model: {model}")
@@ -394,7 +494,7 @@ class PyBaMMBackend(SimulationBackend):
         return param_values
 
     def supports_model(self, model: Model) -> bool:
-         return model  in {Model.SPM, Model.DFN}
+         return model  in {Model.SPM, Model.SPMe, Model.DFN}
 
         
 

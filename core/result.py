@@ -5,7 +5,12 @@ from battery_sim.types.timeseries import TimeSeries
 from battery_sim.types.signal import Signal
 
 class Result:
-    """Signal payload embedded in SimulationRun for a completed simulation."""
+    """Signal payload for a completed simulation.
+
+    Access time-series data via convenience methods (``voltage()``, ``soc()``, …)
+    or generically via ``get(Signal.VOLTAGE)``.  Derived scalar metrics are
+    available through ``total_energy()``, ``peak_power()``, ``min_voltage()``, etc.
+    """
 
     def __init__(self, data: Dict[Signal, TimeSeries], parameter_override: Optional["Any"] = None):
         self._data = data

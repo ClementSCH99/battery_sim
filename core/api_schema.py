@@ -178,6 +178,54 @@ _SIGNAL_METADATA: dict = {
         "typical_range": "85% - 99% depending on chemistry",
         "aliases": ["charge_discharge_efficiency_percent", "round_trip_efficiency_percent"],
     },
+    Signal.CYCLE_DISCHARGE_CAPACITY: {
+        "unit": "Ah",
+        "interpretation": "Per-cycle discharge capacity. Time axis is cycle number.",
+        "use_cases": ["aging_analysis", "cycle_life_prediction", "capacity_validation"],
+        "typical_range": "Depends on cell capacity and protocol",
+    },
+    Signal.CYCLE_CHARGE_CAPACITY: {
+        "unit": "Ah",
+        "interpretation": "Per-cycle charge capacity. Time axis is cycle number.",
+        "use_cases": ["aging_analysis", "cycle_life_prediction", "capacity_validation"],
+        "typical_range": "Depends on cell capacity and protocol",
+    },
+    Signal.CYCLE_COULOMBIC_EFFICIENCY: {
+        "unit": "%",
+        "interpretation": "Per-cycle coulombic efficiency (discharge capacity / charge capacity).",
+        "use_cases": ["aging_analysis", "degradation_diagnostics", "quality_control"],
+        "typical_range": "95% - 100% for healthy cells",
+    },
+    Signal.CYCLE_CAPACITY_RETENTION: {
+        "unit": "%",
+        "interpretation": "Per-cycle capacity retention relative to first cycle.",
+        "use_cases": ["aging_analysis", "warranty_tracking", "cycle_life_prediction"],
+        "typical_range": "100% initially, decreasing with age",
+    },
+    Signal.SEI_THICKNESS: {
+        "unit": "m",
+        "interpretation": "X-averaged SEI layer thickness on the negative electrode.",
+        "use_cases": ["aging_analysis", "degradation_monitoring", "cycle_life_prediction"],
+        "typical_range": "Grows from ~5nm; model-dependent",
+    },
+    Signal.LITHIUM_PLATING_CAPACITY: {
+        "unit": "A.h",
+        "interpretation": "Cumulative capacity lost to lithium plating on the negative electrode.",
+        "use_cases": ["fast_charge_diagnostics", "safety_monitoring", "degradation_monitoring"],
+        "typical_range": "0 for no plating; increases with fast charging or low temps",
+    },
+    Signal.LOSS_OF_ACTIVE_MATERIAL: {
+        "unit": "%",
+        "interpretation": "Percentage of active material lost in the negative electrode.",
+        "use_cases": ["aging_analysis", "degradation_monitoring", "warranty_tracking"],
+        "typical_range": "0% fresh cell; increases with mechanical stress cycling",
+    },
+    Signal.TOTAL_CAPACITY_LOSS: {
+        "unit": "A.h",
+        "interpretation": "Total capacity lost to all side reactions (SEI, plating, etc.).",
+        "use_cases": ["aging_analysis", "degradation_monitoring", "cycle_life_prediction"],
+        "typical_range": "0 for fresh cell; accumulates over cycling",
+    },
 }
 
 # Derived summary metrics that don't correspond to a Signal enum member

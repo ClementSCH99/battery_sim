@@ -47,41 +47,18 @@ from battery_sim.core.convergence_diagnostics import ConvergenceDiagnostics
 
 @dataclass
 class SimulationRun:
-    """
-    Canonical output of a single battery simulation.
-    
-    **Components**:
-    
-     1. **result**
-       - All battery signals (voltage, current, efficiency, etc.)
-       - All 24 derived metrics
-         - Payload embedded in SimulationRun
-    
-    2. **metadata** (B11)
-       - Simulation timestamp and duration
-       - Solver configuration used (rtol, atol, solver type)
-       - Convergence success/failure status
-       - Protocol information
-    
-    3. **errors** (B11)
-       - List of detected physical/numerical violations
-       - Empty list if everything was fine
-       - Categorized (critical vs warning)
-       - Enable early detection of bad simulations
-    
-    4. **diagnostics** (B11)
-       - Solver iteration statistics
-       - Time stepping information
-       - Convergence rate and problem stiffness
-       - Enable debugging of convergence issues
-    
-    **Backward Compatibility**:
-        SimulationRun exposes delegation helpers for common Result accessors:
-        ```python
-        run = simulation.run()
-        efficiency = run.result.charge_discharge_efficiency()  # Old way (still works!)
-        efficiency = run.charge_discharge_efficiency()  # Compatibility delegate
-        ```
+    """Complete output of a single battery simulation.
+
+    Attributes:
+        result: Signal payload (voltage, current, SOC, etc.).
+        metadata: Timestamp, duration, solver config, convergence status.
+        errors: Physical/numerical violations (empty if clean).
+        diagnostics: Solver iteration statistics.
+
+    Key methods:
+        is_successful() — True when converged with no critical errors.
+        summary() — Multi-section human-readable report.
+        to_dict() — Serialise metadata, errors, and diagnostics to JSON.
     """
     
     result: Result
