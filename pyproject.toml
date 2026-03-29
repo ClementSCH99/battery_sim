@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "battery-sim"
+version = "0.1.0"
+description = "A battery simulation toolkit built on PyBaMM"
+requires-python = ">=3.10"
+dependencies = [
+    "pybamm",
+    "numpy",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "matplotlib",
+]
+
+[tool.setuptools]
+packages = ["battery_sim", "battery_sim.backend", "battery_sim.core", "battery_sim.types"]
+
+[tool.setuptools.package-dir]
+"battery_sim" = "."
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["slow: marks tests as slow (run with -m slow)"]

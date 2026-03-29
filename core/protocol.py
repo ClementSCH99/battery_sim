@@ -6,9 +6,6 @@ from typing import List, Optional
 
 @dataclass(frozen=True)
 class Step:
-    def to_pybamm(self) -> list[str]:
-        raise NotImplementedError
-    pass
 
     def duration_s(self) -> Optional[float]:
         """
@@ -24,16 +21,6 @@ class ConstantCurrent(Step):
     def duration_s(self) -> float:
         return self._duration_s
 
-    def to_pybamm(self) -> List[str]:
-        """
-        Charge: current < 0
-        Discharge: current > 0
-        """
-        if self.current_A > 0:
-            return [f"Discharge at {self.current_A} A for {self._duration_s} seconds"]
-        else:
-            return [f"Charge at {abs(self.current_A)} A for {self._duration_s} seconds"]
-
 
 @dataclass(frozen=True)
 class Rest(Step):
@@ -41,9 +28,6 @@ class Rest(Step):
 
     def duration_s(self) -> float:
         return self._duration_s
-    
-    def to_pybamm(self) -> List[str]:
-        return [f"Rest for {self._duration_s} seconds"]
 
 
 @dataclass(frozen=True)
@@ -51,11 +35,6 @@ class CC_CV(Step):
     charge_current_A: float
     cutoff_voltage_V: float
     taper_current_A: float
-
-    def to_pybamm(self) -> List[str]:
-        CC = f"Charge at {self.charge_current_A} A until {self.cutoff_voltage_V} V"
-        CV = f"Hold at {self.cutoff_voltage_V} V until {self.taper_current_A} A"
-        return [CC,CV]
 
 
 @dataclass(frozen=True)
@@ -91,7 +70,7 @@ class Protocol:
                 )
         
             if isinstance(step, ConstantCurrent):
-                if not step.current_A != 0:
+                if step.current_A == 0:
                     raise ProtocolValidationError(
                         f"ConstantCurrent step at index {i}: current must be different than 0A - Protocol not valide"
                     )

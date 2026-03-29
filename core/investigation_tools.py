@@ -1,77 +1,41 @@
 """
-LAYER 2: INVESTIGATION TOOLS - Core Operations for LLM Reasoning
+Investigation Tools — Value Objects and Unique Analysis Logic
 
-TEACHING FOCUS: How to build investigative operations
+This module provides:
+- BatchSimulationConfig: configuration container for batch simulations
+- ComparisonMetric: value object for extracted metrics
+- ConstraintViolation: value object for constraint check results
+- ConstraintChecker: feasibility checking logic (unique behavior)
+- ParameterExplorer: guided parameter space search (unique algorithm)
 
-WHY THIS LAYER EXISTS:
-Layer 1 (API Schema) answered: "What CAN I do?"
-Layer 2 answers: "HOW do I do it?"
+TEACHING NOTE — Why is this module smaller than it used to be?
+This module previously contained BatchSimulator, SimulationComparison, and
+SensitivityAnalyzer classes. Those were "pass-through wrappers" that did
+nothing except forward calls to application_services.py. They violated the
+DRY principle: if a bug was fixed in BatchExecutionService, BatchSimulator
+wouldn't get the fix because it was a separate copy of the same interface.
 
-An LLM needs operations that let it:
-1. Compare presets (which chemistry is best?)
-2. Analyze sensitivity (does this parameter matter?)
-3. Check constraints (is this scenario feasible?)
-4. Explore systematically (find good parameters)
-5. Run batches (test multiple hypotheses)
+The rule: "If deleting this code only changes import paths, it's dead weight."
 
-DESIGN PRINCIPLE: These are INVESTIGATION PRIMITIVES.
-They're not optimizers (we're not "solving" for best parameters).
-They're not simulators (that's B9-B11's job).
-They're EXPLORATION tools that let the LLM learn through experimentation.
-
-KEY INSIGHT: The best insights come from trying multiple things and
-comparing results. These tools make that process systematic and reportable.
-
----
-
-EXAMPLE: How investigation tools guide reasoning
-
-SCENARIO: "I need a cell for high power. What's the best chemistry?"
-
-WITHOUT TOOLS:
-  LLM: "You should use NCA"
-  Engineer: "Why?"
-  LLM: "Because it has high energy density"
-  Engineer: "But I need power, not energy!"
-  (Reasoning is unsupported)
-
-WITH TOOLS:
-  LLM: "Let me explore" [uses compare_presets]
-  LLM: "NCA has 25W peak power, NMC has 18W, LFP has 12W"
-  LLM: "NCA is 40% more powerful"
-  LLM: "But temperature analysis shows [uses sensitivity_analysis]"
-  LLM: "NCA loses 8% efficiency at 40°C, NMC only 3%"
-  LLM: "For your typical 35°C operating point, NMC is actually better"
-  (Reasoning is grounded in data)
+What remains here are VALUE OBJECTS (dataclasses that carry data) and classes
+with UNIQUE BEHAVIOR (ConstraintChecker, ParameterExplorer) — things that
+provide real logic not available anywhere else.
 """
 
-from dataclasses import dataclass, field, replace
-from importlib import import_module
-from typing import Dict, List, Any, Optional, Tuple, Callable
+from dataclasses import dataclass, field
+from typing import Dict, List, Any, Optional, Callable
 
-from battery_sim.core.simulation import Simulation
 from battery_sim.core.cell import Cell
 from battery_sim.core.model import Model
 from battery_sim.core.protocol import Protocol
 from battery_sim.core.environment import Environment
 from battery_sim.core.solver import SolverConfig
-from battery_sim.core.application_services import BatchExecutionService
-from battery_sim.core.application_services import ComparisonService
-from battery_sim.core.application_services import SensitivityResult
-from battery_sim.core.application_services import SensitivityService
 from battery_sim.core.simulation_run import SimulationRun
 from battery_sim.core.simulation_backend import SimulationBackend
 
 
-def _create_default_backend() -> SimulationBackend:
-    """Load the default concrete backend lazily to avoid a core import-time dependency."""
-    backend_module = import_module("battery_sim.backend.pybamm_backend")
-    backend_class = getattr(backend_module, "PyBaMMBackend")
-    return backend_class()
-
-
 # ============================================================================
-# BATCH SIMULATOR: Run multiple simulations efficiently
+# CONFIGURATION VALUE OBJECT
 # ============================================================================
 
 @dataclass
@@ -79,82 +43,19 @@ class BatchSimulationConfig:
     """
     Configuration for running multiple simulations.
     
-    TEACHING: When you want to run 10 different scenarios, you don't set up
-    each one manually. You describe what you want, and the tool sets them up.
-    
-    This is about automating the "boring" setup so you can focus on analysis.
+    TEACHING: This is a VALUE OBJECT — it holds data, doesn't delegate.
+    When you want to run 10 different scenarios, you describe what you want
+    in a config, and the service layer (application_services) executes it.
     """
     protocol: Protocol
     environment: Environment = field(default_factory=lambda: Environment(temperature_C=25.0))
     model: Model = Model.SPM
     solver_config: SolverConfig = field(default_factory=SolverConfig)
-    backend: SimulationBackend = field(default_factory=_create_default_backend)
-
-
-class BatchSimulator:
-    """
-    Run multiple simulations with different parameters in batch.
-    
-    TEACHING: Batch processing is faster than sequential, and you can
-    compare results systematically. The LLM might say:
-    "Run NMC, NCA, and LFP each at 25°C and 40°C"
-    
-    BatchSimulator translates that into 6 simulations and runs them.
-    """
-    
-    @staticmethod
-    def run_presets(
-        preset_names: List[str],
-        config: BatchSimulationConfig,
-    ) -> List[Tuple[str, Optional[SimulationRun]]]:
-        """
-        Run simulations for multiple cell presets.
-        
-        TEACHING: This is a specialized batch operation. "Run these presets
-        with the same environment and protocol."
-        
-        Args:
-            preset_names: List of preset names (e.g., ['LFP_5AH', 'NMC_5AH'])
-            config: Simulation configuration (protocol, environment, solver)
-        
-        Returns:
-            List of (preset_name, simulation_run) tuples
-        """
-        service = BatchExecutionService()
-        return service.run_presets(preset_names, config)
-    
-    @staticmethod
-    def run_parameter_variations(
-        baseline_cell: Cell,
-        parameter_name: str,
-        parameter_values: List[Any],
-        config: BatchSimulationConfig,
-    ) -> List[Tuple[Any, Optional[SimulationRun]]]:
-        """
-        Run simulations with one parameter varying.
-        
-        TEACHING: "I want to see what happens as I change temperature from 0 to 50"
-        
-        Args:
-            baseline_cell: Starting cell to modify
-            parameter_name: Parameter to vary (e.g., 'nominal_capacity_Ah')
-            parameter_values: Values to test
-            config: Simulation configuration
-        
-        Returns:
-            List of (parameter_value, simulation_run) tuples
-        """
-        service = BatchExecutionService()
-        return service.run_parameter_variations(
-            baseline_cell,
-            parameter_name,
-            parameter_values,
-            config,
-        )
+    backend: SimulationBackend = field(default=None)
 
 
 # ============================================================================
-# SIMULATION COMPARISON: Side-by-side analysis
+# COMPARISON VALUE OBJECT
 # ============================================================================
 
 @dataclass(frozen=True)
@@ -174,111 +75,6 @@ class ComparisonMetric:
         if baseline_value == 0 or self.value is None:
             return None
         return (self.value - baseline_value) / baseline_value * 100  # As percentage
-
-
-class SimulationComparison:
-    """
-    Compare two or more simulations side-by-side.
-    
-    TEACHING: This is how humans make decisions. "NMC vs NCA: which is better?"
-    You run both and compare. This tool automates the comparison.
-    
-    QUESTION TO ASK: "What does 'better' mean?"
-    Different applications prioritize different metrics:
-    - High-power tool: maximize peak_power_W
-    - Long-range EV: maximize total_energy_Wh
-    - Safe application: monitor temperature and thermal margins
-    
-    The comparison tool extracts all metrics, and the LLM decides what matters.
-    """
-    
-    @staticmethod
-    def extract_metrics(
-        simulation_run: Optional[SimulationRun],
-    ) -> Dict[str, Any]:
-        """
-        TEACHING: Extract all key metrics from a simulation result.
-        
-        This is like a "profile" of the battery. You can compare profiles.
-        
-        Args:
-            simulation_run: Canonical output returned by simulation.run()
-        
-        Returns:
-            Dict mapping metric names to values
-        """
-        return ComparisonService.extract_metrics(simulation_run)
-    
-    @staticmethod
-    def compare_batch_results(
-        results: List[Tuple[str, Optional[SimulationRun]]],
-        metric_filters: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
-        """
-        Compare multiple simulations.
-        
-        TEACHING: Given a batch of results, extract all metrics and compute
-        relative differences.
-        
-        Args:
-            results: List of (label, simulation_run) tuples
-            metric_filters: Only compare these metrics (None = all)
-        
-        Returns:
-            Dict with comparison data (metrics, relative diffs, rankings)
-        """
-        return ComparisonService.compare_batch_results(results, metric_filters=metric_filters)
-
-
-# ============================================================================
-# SENSITIVITY ANALYZER: Quantify parameter impacts
-# ============================================================================
-
-class SensitivityAnalyzer:
-    """
-    Analyze how much a parameter affects results.
-    
-    TEACHING: This is crucial for reasoning about BMS calibration.
-    "Which parameters should I tune first?"
-    "Which parameters barely matter?"
-    
-    You answer by analyzing sensitivity.
-    """
-    
-    @staticmethod
-    def analyze_single_parameter(
-        baseline_cell: Cell,
-        parameter_name: str,
-        parameter_values: List[float],
-        config: BatchSimulationConfig,
-        metric_extractor: Callable[[SimulationRun], float],
-    ) -> SensitivityResult:
-        """
-        Analyze how one parameter affects a metric.
-        
-        TEACHING: This is systematic exploration.
-        1. Vary the parameter over a range
-        2. Extract the metric you care about  
-        3. Compute sensitivity
-        
-        Args:
-            baseline_cell: Starting point
-            parameter_name: Parameter to vary
-            parameter_values: Values to test
-            config: Simulation config
-            metric_extractor: Function to extract the metric of interest
-        
-        Returns:
-            SensitivityResult with statistics
-        """
-        service = SensitivityService()
-        return service.analyze_single_parameter(
-            baseline_cell,
-            parameter_name,
-            parameter_values,
-            config,
-            metric_extractor,
-        )
 
 
 # ============================================================================

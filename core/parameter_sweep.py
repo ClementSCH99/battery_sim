@@ -15,6 +15,7 @@ from battery_sim.core.cell import Cell
 from battery_sim.core.environment import Environment
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.simulation_run import SimulationRun
+from battery_sim.core.simulation_backend import SimulationBackend
 
 
 @dataclass(frozen=True)
@@ -72,11 +73,12 @@ class ParameterSweep:
     Supports both single-parameter sweeps and multi-dimensional sweeps.
     """
 
-    _execution_service = SimulationExecutionService()
-    _sweep_service = ParameterSweepService(_execution_service)
+    def __init__(self, backend: SimulationBackend) -> None:
+        self._execution_service = SimulationExecutionService(backend)
+        self._sweep_service = ParameterSweepService(self._execution_service)
 
-    @staticmethod
     def sweep_cell_parameter(
+        self,
         baseline_simulation: Simulation,
         parameter_name: str,
         values: List[Any],
@@ -104,7 +106,7 @@ class ParameterSweep:
             >>> for r in results:
             ...     print(f"{r.parameter_value} Ah: {r.simulation_result.peak_power()} W")
         """
-        raw_results = ParameterSweep._sweep_service.sweep_parameter(
+        raw_results = self._sweep_service.sweep_parameter(
             baseline_simulation,
             "cell",
             parameter_name,
@@ -130,8 +132,8 @@ class ParameterSweep:
 
         return sweep_results
 
-    @staticmethod
     def sweep_environment_parameter(
+        self,
         baseline_simulation: Simulation,
         parameter_name: str,
         values: List[Any],
@@ -156,7 +158,7 @@ class ParameterSweep:
             ...     [0, 25, 40, 60]
             ... )
         """
-        raw_results = ParameterSweep._sweep_service.sweep_parameter(
+        raw_results = self._sweep_service.sweep_parameter(
             baseline_simulation,
             "environment",
             parameter_name,
@@ -182,8 +184,8 @@ class ParameterSweep:
 
         return sweep_results
 
-    @staticmethod
     def multi_parameter_sweep(
+        self,
         baseline_simulation: Simulation,
         parameters: Dict[str, List[Any]],
         verbose: bool = False,
@@ -212,7 +214,7 @@ class ParameterSweep:
             >>> results = ParameterSweep.multi_parameter_sweep(sim, params, verbose=True)
             >>> # 3 × 2 = 6 simulations total
         """
-        raw_results = ParameterSweep._sweep_service.multi_parameter_sweep(
+        raw_results = self._sweep_service.multi_parameter_sweep(
             baseline_simulation,
             parameters,
         )

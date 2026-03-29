@@ -70,6 +70,7 @@ from battery_sim.core.model import Model
 from battery_sim.core.protocol import Protocol, ConstantCurrent, Rest
 from battery_sim.core.environment import Environment
 from battery_sim.core.solver import SolverConfig
+from battery_sim.backend.pybamm_backend import PyBaMMBackend
 
 
 # ============================================================================
@@ -145,8 +146,9 @@ class AgentAPI:
         ])
         self.default_model = default_model
         self.default_solver_config = default_solver_config or SolverConfig()
-        self.comparison_service = ComparisonService()
-        self.sensitivity_service = SensitivityService()
+        self._backend = PyBaMMBackend()
+        self.comparison_service = ComparisonService(backend=self._backend)
+        self.sensitivity_service = SensitivityService(backend=self._backend)
     
     # ========================================================================
     # DISCOVERY: What can I do?
@@ -308,6 +310,7 @@ class AgentAPI:
             environment=environment,
             model=self.default_model,
             solver_config=self.default_solver_config,
+            backend=self._backend,
         )
         
         comparison = self.comparison_service.compare_presets(preset_names, config)
@@ -368,6 +371,7 @@ class AgentAPI:
             environment=Environment(temperature_C=25.0),
             model=self.default_model,
             solver_config=self.default_solver_config,
+            backend=self._backend,
         )
         
         # Define ranges for parameters

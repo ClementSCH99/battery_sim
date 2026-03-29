@@ -5,19 +5,29 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from battery_sim.core.cell import Cell
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.simulation_run import SimulationRun
+from battery_sim.core.simulation_backend import SimulationBackend
 
 
 class SimulationExecutionService:
+    def __init__(self, backend: SimulationBackend) -> None:
+        self.backend = backend
+
     def execute(self, simulation: Simulation) -> SimulationRun:
-        return simulation.run()
+        return simulation.run(self.backend)
 
 
 class BatchExecutionService:
     def __init__(
         self,
         execution_service: Optional[SimulationExecutionService] = None,
+        backend: Optional[SimulationBackend] = None,
     ) -> None:
-        self.execution_service = execution_service or SimulationExecutionService()
+        if execution_service is not None:
+            self.execution_service = execution_service
+        elif backend is not None:
+            self.execution_service = SimulationExecutionService(backend)
+        else:
+            raise ValueError("BatchExecutionService requires either execution_service or backend")
 
     def run_presets(
         self,
@@ -33,7 +43,6 @@ class BatchExecutionService:
                 model=config.model,
                 protocol=config.protocol,
                 environment=config.environment,
-                backend=config.backend,
                 solver_config=config.solver_config,
             )
 
@@ -58,7 +67,6 @@ class BatchExecutionService:
             model=config.model,
             protocol=config.protocol,
             environment=config.environment,
-            backend=config.backend,
             solver_config=config.solver_config,
         )
         target = "environment" if parameter_name == "temperature_C" else "cell"
@@ -183,8 +191,14 @@ class ComparisonService:
     def __init__(
         self,
         batch_service: Optional[BatchExecutionService] = None,
+        backend: Optional[SimulationBackend] = None,
     ) -> None:
-        self.batch_service = batch_service or BatchExecutionService()
+        if batch_service is not None:
+            self.batch_service = batch_service
+        elif backend is not None:
+            self.batch_service = BatchExecutionService(backend=backend)
+        else:
+            raise ValueError("ComparisonService requires either batch_service or backend")
 
     def compare_presets(
         self,
@@ -335,8 +349,14 @@ class SensitivityService:
     def __init__(
         self,
         batch_service: Optional[BatchExecutionService] = None,
+        backend: Optional[SimulationBackend] = None,
     ) -> None:
-        self.batch_service = batch_service or BatchExecutionService()
+        if batch_service is not None:
+            self.batch_service = batch_service
+        elif backend is not None:
+            self.batch_service = BatchExecutionService(backend=backend)
+        else:
+            raise ValueError("SensitivityService requires either batch_service or backend")
 
     def analyze_single_parameter(
         self,
@@ -352,7 +372,6 @@ class SensitivityService:
             model=config.model,
             protocol=config.protocol,
             environment=config.environment,
-            backend=config.backend,
             solver_config=config.solver_config,
         )
         target = "environment" if parameter_name == "temperature_C" else "cell"

@@ -224,8 +224,10 @@ class SimulationRun:
             diagnostics=diagnostics,
         )
     
-    # Compatibility delegates for code that previously consumed bare Result
-    
+    # --- Backward-compatible Result delegates ---
+    # These methods forward to self.result for migration convenience.
+    # TODO: Deprecate in a future version once all callers use .result directly.
+
     def get(self, signal):
         """Delegate to result.get()"""
         return self.result.get(signal)
@@ -355,8 +357,9 @@ class SimulationRun:
         return self.result.get(signal)
     
     def plot(self, *args, **kwargs):
-        """Delegate to result.plot()"""
-        return self.result.plot(*args, **kwargs)
+        """Delegate to result_plotting.plot_result()."""
+        from battery_sim.core.result_plotting import plot_result
+        return plot_result(self.result, *args, **kwargs)
     
     def to_file(self, filepath: str, include_metadata: bool = True):
         """

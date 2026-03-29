@@ -159,7 +159,7 @@ class ComparisonFormatter:
         
         Args:
             scenarios: List of scenario names
-            metrics_dict: Dict of metrics (from SimulationComparison)
+            metrics_dict: Dict of metrics (from ComparisonService)
         
         Returns:
             DualFormatResult with JSON + Markdown

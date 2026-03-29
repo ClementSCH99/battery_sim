@@ -1,3 +1,6 @@
+> **SUPERSEDED** — This prompt was written for the March 24 session, which has been completed.
+> For the final audit status, see [07_audit_closure_2026-03-24.md](07_audit_closure_2026-03-24.md).
+
 # Next Session Prompt
 
 Use this repository as an audit-driven refactor.

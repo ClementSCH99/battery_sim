@@ -11,6 +11,7 @@ from battery_sim.core.environment import Environment
 from battery_sim.core.model import Model
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.simulation_backend import SimulationBackend
+from battery_sim.core.protocol import Protocol, ConstantCurrent, Rest, CC_CV
 from battery_sim.core.result import Result
 from battery_sim.core.solver import Solver, SolverConfig
 from battery_sim.types.timeseries import TimeSeries
@@ -26,6 +27,23 @@ _SOLVER_REGISTRY: dict[Solver, Type[pybamm.BaseSolver]] = {
      Solver.CASADI: pybamm.CasadiSolver,
      Solver.SCIPY: pybamm.ScipySolver
 }
+
+
+def translate_protocol_to_pybamm(protocol: Protocol) -> list[str]:
+    """Convert domain protocol steps to PyBaMM experiment strings."""
+    strings: list[str] = []
+    for step in protocol.steps:
+        if isinstance(step, ConstantCurrent):
+            if step.current_A > 0:
+                strings.append(f"Discharge at {step.current_A} A for {step._duration_s} seconds")
+            else:
+                strings.append(f"Charge at {abs(step.current_A)} A for {step._duration_s} seconds")
+        elif isinstance(step, Rest):
+            strings.append(f"Rest for {step._duration_s} seconds")
+        elif isinstance(step, CC_CV):
+            strings.append(f"Charge at {step.charge_current_A} A until {step.cutoff_voltage_V} V")
+            strings.append(f"Hold at {step.cutoff_voltage_V} V until {step.taper_current_A} A")
+    return strings
 
 
 class PyBaMMBackend(SimulationBackend):
@@ -308,11 +326,8 @@ class PyBaMMBackend(SimulationBackend):
     
     def _build_experiment(self, simulation : Simulation) -> pybamm.Experiment:
 
-        steps = []
+        steps = translate_protocol_to_pybamm(simulation.protocol)
         periode = None
-
-        for step in simulation.protocol.steps:
-                steps.extend(step.to_pybamm())
         
         if simulation.solver_config.time_step_s is not None:
              periode = f"{simulation.solver_config.time_step_s} seconds"
