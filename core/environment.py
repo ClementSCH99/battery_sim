@@ -4,6 +4,9 @@ from typing import Optional
 
 from battery_sim.core.exceptions import EnvironmentValidationError
 
+_VALID_THERMAL_MODELS = {"isothermal", "lumped", "x-lumped", "x-full"}
+
+
 @dataclass(frozen=True, init=False)
 class Environment:
     """Thermal boundary conditions for a simulation.
@@ -15,12 +18,14 @@ class Environment:
 
     temperature_C: float
     convection_W_per_m2K: Optional[float] = None
+    thermal_model: Optional[str] = None
 
     def __init__(
         self,
         temperature_C: Optional[float] = None,
         convection_W_per_m2K: Optional[float] = None,
         ambient_temperature_C: Optional[float] = None,
+        thermal_model: Optional[str] = None,
         **legacy_kwargs: Optional[float],
     ) -> None:
         legacy_ambient_key = "ambi" + "ant_temperature_C"
@@ -58,6 +63,7 @@ class Environment:
 
         object.__setattr__(self, "temperature_C", resolved_temperature_C)
         object.__setattr__(self, "convection_W_per_m2K", convection_W_per_m2K)
+        object.__setattr__(self, "thermal_model", thermal_model)
 
     @property
     def ambient_temperature_C(self) -> float:
@@ -79,4 +85,10 @@ class Environment:
         if self.convection_W_per_m2K is not None and self.convection_W_per_m2K <= 0:
             raise EnvironmentValidationError(
                 "Convection coefficient must be positive."
+            )
+
+        if self.thermal_model is not None and self.thermal_model not in _VALID_THERMAL_MODELS:
+            raise EnvironmentValidationError(
+                f"Unknown thermal_model {self.thermal_model!r}. "
+                f"Valid values: {sorted(_VALID_THERMAL_MODELS)}"
             )

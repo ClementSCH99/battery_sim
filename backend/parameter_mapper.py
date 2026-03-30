@@ -17,6 +17,11 @@ _CHEMISTRY_PARAMETER_SETS = {
     "NCA": "Chen2020",
     "LCO": "Chen2020",
     "LMNO": "Chen2020",
+    # Validated parameter sets from PyBaMM literature
+    "NMC-ECKER": "Ecker2015",        # Ecker et al. 2015, Kokam SLPB 75106100 pouch
+    "NMC-OKANE": "OKane2022",        # O'Kane et al. 2022, degradation-focused
+    "NMC-MOHTAT": "Mohtat2020",      # Mohtat et al. 2020, pouch cell
+    "NMC-AI": "Ai2020",              # Ai et al. 2020, Enertech pouch cell
 }
 
 _CHEMISTRY_VARIANTS = {

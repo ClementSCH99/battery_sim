@@ -158,7 +158,7 @@ class PyBaMMBackend(SimulationBackend):
                     values_array = values_array * 100.0
                 unit = "%"
             
-            if signal == Signal.TEMPERATURE:
+            if signal in (Signal.TEMPERATURE, Signal.CELL_TEMPERATURE):
                 values_array = values_array - 273.15
                 unit = "°C"
             
@@ -395,22 +395,27 @@ class PyBaMMBackend(SimulationBackend):
 
     def _build_model(self, model: Model, environment: Environment, degradation=None) -> pybamm.lithium_ion.BaseModel:
         options = {}
-        
-        if environment.convection_W_per_m2K is not None:
-            options["thermal"] = "lumped"
 
-            # "isothermal" → pas de thermique
-            # "lumped" → 1 température cellule
-            # "x-lumped" / "x-full" → spatial 
-            
-        # Map domain-level degradation booleans to PyBaMM option strings
+        thermal = environment.thermal_model
+        if thermal is None and environment.convection_W_per_m2K is not None:
+            thermal = "lumped"
+        if thermal is None:
+            thermal = "isothermal"
+        options["thermal"] = thermal
+
+        # Map domain-level degradation config to PyBaMM option strings
         if degradation is not None:
-            if degradation.sei_growth:
-                options["SEI"] = "ec reaction limited"
-            if degradation.lithium_plating:
-                options["lithium plating"] = "irreversible"
-            if degradation.active_material_loss:
-                options["loss of active material"] = "stress-driven"
+            resolved = degradation.resolve()
+            if resolved.sei:
+                options["SEI"] = resolved.sei
+            if resolved.lithium_plating:
+                options["lithium plating"] = resolved.lithium_plating
+            if resolved.am_loss:
+                options["loss of active material"] = resolved.am_loss
+            if resolved.sei_on_cracks:
+                options["SEI on cracks"] = "true"
+            if resolved.particle_mechanics:
+                options["particle mechanics"] = resolved.particle_mechanics
 
         if model == Model.SPM:
             return pybamm.lithium_ion.SPM(options=options or None)
@@ -486,6 +491,7 @@ class PyBaMMBackend(SimulationBackend):
 
         # Map Environment parameters to PyBaMM parameters
         updates["Ambient temperature [K]"] = environment.ambient_temperature_C + 273.15
+        updates["Initial temperature [K]"] = environment.ambient_temperature_C + 273.15
         if environment.convection_W_per_m2K is not None:
             updates["Convection coefficient [W/m^2/K]"] = environment.convection_W_per_m2K
 

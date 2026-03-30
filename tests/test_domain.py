@@ -29,6 +29,8 @@ from battery_sim.core.exceptions import (
     EnvironmentValidationError,
     SolverValidationError,
 )
+from battery_sim.types.signal import Signal
+from battery_sim.backend.pybamm_signal import PYBAMM_SIGNAL_MAP
 
 
 # ============================================================================
@@ -92,6 +94,21 @@ class TestCellPresets:
         for preset_name in Cell.list_presets():
             cell = Cell.preset(preset_name)
             cell.validate()
+
+    @pytest.mark.parametrize("preset_name", [
+        "NMC_ECKER_KOKAM",
+        "NMC_OKANE_AGING",
+        "NMC_MOHTAT_POUCH",
+        "NMC_AI_ENERTECH",
+    ])
+    def test_validated_parameter_set_presets_load(self, preset_name):
+        """New validated parameter set presets load and have valid specs."""
+        cell = Cell.preset(preset_name)
+        assert cell.chemistry, "Chemistry must be set"
+        assert cell.nominal_capacity_Ah > 0, "Capacity must be positive"
+        assert cell.nominal_voltage_V > 0, "Voltage must be positive"
+        assert "source" in cell.metadata, "Metadata must include 'source'"
+        cell.validate()
 
 
 # ============================================================================
@@ -201,6 +218,25 @@ class TestEnvironmentValidation:
         """Exactly 100°C is the upper bound — should be accepted."""
         env = Environment(temperature_C=100.0)
         env.validate()
+
+    def test_valid_thermal_model_lumped(self):
+        env = Environment(temperature_C=25.0, thermal_model="lumped")
+        env.validate()
+
+    def test_valid_thermal_model_x_full(self):
+        env = Environment(temperature_C=25.0, thermal_model="x-full")
+        env.validate()
+
+    def test_invalid_thermal_model_rejected(self):
+        env = Environment(temperature_C=25.0, thermal_model="invalid")
+        with pytest.raises(EnvironmentValidationError):
+            env.validate()
+
+    def test_convection_without_thermal_model_backward_compat(self):
+        """Setting convection but no explicit thermal_model should be accepted."""
+        env = Environment(temperature_C=25.0, convection_W_per_m2K=10.0)
+        env.validate()
+        assert env.thermal_model is None  # stays None; backend auto-promotes
 
 
 class TestEnvironmentAlias:
@@ -354,3 +390,211 @@ class TestSimulationValidation:
         )
         with pytest.raises(SolverValidationError):
             sim.validate()
+
+
+# ============================================================================
+# Deep Electrochemical Observability Signals
+# ============================================================================
+
+class TestElectrochemicalSignals:
+    """Verify Phase B electrochemical observability signals are registered."""
+
+    PHASE_B_SIGNALS = [
+        Signal.NEGATIVE_PARTICLE_SURFACE_CONCENTRATION,
+        Signal.POSITIVE_PARTICLE_SURFACE_CONCENTRATION,
+        Signal.NEGATIVE_OCV,
+        Signal.POSITIVE_OCV,
+        Signal.NEGATIVE_REACTION_OVERPOTENTIAL,
+        Signal.POSITIVE_REACTION_OVERPOTENTIAL,
+        Signal.NEGATIVE_EXCHANGE_CURRENT_DENSITY,
+        Signal.POSITIVE_EXCHANGE_CURRENT_DENSITY,
+        Signal.ELECTROLYTE_POTENTIAL,
+        Signal.NEGATIVE_STOICHIOMETRY,
+        Signal.POSITIVE_STOICHIOMETRY,
+        Signal.NEGATIVE_SOLID_POTENTIAL,
+        Signal.POSITIVE_SOLID_POTENTIAL,
+    ]
+
+    def test_all_signals_exist_and_have_unique_values(self):
+        """Every Phase B signal is a valid enum member with a unique string value."""
+        values = [s.value for s in self.PHASE_B_SIGNALS]
+        assert len(values) == len(set(values)), "Duplicate signal values detected"
+
+    def test_all_signals_in_pybamm_signal_map(self):
+        """Every Phase B signal has a corresponding entry in PYBAMM_SIGNAL_MAP."""
+        for signal in self.PHASE_B_SIGNALS:
+            assert signal in PYBAMM_SIGNAL_MAP, (
+                f"{signal.name} missing from PYBAMM_SIGNAL_MAP"
+            )
+
+
+# ============================================================================
+# Thermal Signals — Phase A
+# ============================================================================
+
+class TestThermalSignals:
+    """Verify Phase A thermal signals are registered."""
+
+    PHASE_A_SIGNALS = [
+        Signal.HEAT_GENERATION,
+        Signal.IRREVERSIBLE_HEAT,
+        Signal.REVERSIBLE_HEAT,
+        Signal.OHMIC_HEAT,
+        Signal.CELL_TEMPERATURE,
+    ]
+
+    def test_all_thermal_signals_unique(self):
+        """Every Phase A thermal signal has a unique string value."""
+        values = [s.value for s in self.PHASE_A_SIGNALS]
+        assert len(values) == len(set(values)), "Duplicate thermal signal values"
+
+    def test_all_thermal_signals_in_pybamm_signal_map(self):
+        """Every Phase A thermal signal maps to PyBaMM."""
+        for signal in self.PHASE_A_SIGNALS:
+            assert signal in PYBAMM_SIGNAL_MAP, (
+                f"{signal.name} missing from PYBAMM_SIGNAL_MAP"
+            )
+
+
+# ============================================================================
+# Degradation Signals — Phase C
+# ============================================================================
+
+class TestDegradationSignals:
+    """Verify Phase C degradation signals are registered."""
+
+    from battery_sim.backend.pybamm_signal import DERIVED_SIGNALS
+
+    PHASE_C_SIGNALS = [
+        Signal.SEI_THICKNESS,
+        Signal.SEI_FILM_RESISTANCE,
+        Signal.LITHIUM_PLATING_CAPACITY,
+        Signal.LITHIUM_PLATING_THICKNESS,
+        Signal.LOSS_OF_ACTIVE_MATERIAL,
+        Signal.TOTAL_CAPACITY_LOSS,
+        Signal.NEGATIVE_PARTICLE_CRACK_LENGTH,
+    ]
+
+    PHASE_C_CYCLING_SIGNALS = [
+        Signal.CYCLE_DISCHARGE_CAPACITY,
+        Signal.CYCLE_CHARGE_CAPACITY,
+        Signal.CYCLE_COULOMBIC_EFFICIENCY,
+        Signal.CYCLE_CAPACITY_RETENTION,
+    ]
+
+    def test_all_degradation_signals_unique(self):
+        """Every Phase C degradation signal has a unique string value."""
+        values = [s.value for s in self.PHASE_C_SIGNALS]
+        assert len(values) == len(set(values)), "Duplicate degradation signal values"
+
+    def test_all_degradation_signals_in_pybamm_signal_map(self):
+        """Every Phase C degradation signal maps to PyBaMM."""
+        for signal in self.PHASE_C_SIGNALS:
+            assert signal in PYBAMM_SIGNAL_MAP, (
+                f"{signal.name} missing from PYBAMM_SIGNAL_MAP"
+            )
+
+    def test_all_cycling_signals_are_derived(self):
+        """Cycling signals are derived (not in PYBAMM_SIGNAL_MAP)."""
+        for signal in self.PHASE_C_CYCLING_SIGNALS:
+            assert signal in self.DERIVED_SIGNALS, (
+                f"{signal.name} missing from DERIVED_SIGNALS"
+            )
+
+
+# ============================================================================
+# Degradation Config — Phase C
+# ============================================================================
+
+class TestDegradationConfig:
+    """DegradationConfig resolve/validate logic (no PyBaMM needed)."""
+
+    def test_legacy_sei_resolves_to_ec_reaction_limited(self):
+        """Backward compat: sei_growth=True resolves to 'ec reaction limited'."""
+        from battery_sim.core.degradation import DegradationConfig
+        cfg = DegradationConfig(sei_growth=True)
+        resolved = cfg.resolve()
+        assert resolved.sei == "ec reaction limited"
+
+    def test_legacy_plating_resolves_to_irreversible(self):
+        from battery_sim.core.degradation import DegradationConfig
+        cfg = DegradationConfig(lithium_plating=True)
+        resolved = cfg.resolve()
+        assert resolved.lithium_plating == "irreversible"
+
+    def test_legacy_am_loss_resolves_to_stress_driven(self):
+        from battery_sim.core.degradation import DegradationConfig
+        cfg = DegradationConfig(active_material_loss=True)
+        resolved = cfg.resolve()
+        assert resolved.am_loss == "stress-driven"
+
+    def test_explicit_sei_model_resolves(self):
+        from battery_sim.core.degradation import DegradationConfig
+        cfg = DegradationConfig(sei_model="solvent-diffusion limited")
+        resolved = cfg.resolve()
+        assert resolved.sei == "solvent-diffusion limited"
+
+    def test_explicit_model_overrides_boolean(self):
+        """When both sei_model and sei_growth are set, explicit model wins."""
+        from battery_sim.core.degradation import DegradationConfig
+        cfg = DegradationConfig(sei_model="ec reaction limited", sei_growth=True)
+        resolved = cfg.resolve()
+        assert resolved.sei == "ec reaction limited"
+
+    def test_invalid_sei_model_raises(self):
+        from battery_sim.core.degradation import DegradationConfig
+        cfg = DegradationConfig(sei_model="invalid")
+        with pytest.raises(ValueError, match="Invalid SEI model"):
+            cfg.validate()
+
+    def test_invalid_plating_model_raises(self):
+        from battery_sim.core.degradation import DegradationConfig
+        cfg = DegradationConfig(lithium_plating_model="invalid")
+        with pytest.raises(ValueError, match="Invalid lithium plating model"):
+            cfg.validate()
+
+    def test_invalid_am_loss_model_raises(self):
+        from battery_sim.core.degradation import DegradationConfig
+        cfg = DegradationConfig(am_loss_model="invalid")
+        with pytest.raises(ValueError, match="Invalid AM loss model"):
+            cfg.validate()
+
+    def test_invalid_particle_mechanics_raises(self):
+        from battery_sim.core.degradation import DegradationConfig
+        cfg = DegradationConfig(particle_mechanics="invalid")
+        with pytest.raises(ValueError, match="Invalid particle mechanics"):
+            cfg.validate()
+
+    def test_particle_mechanics_and_sei_on_cracks_valid(self):
+        from battery_sim.core.degradation import DegradationConfig
+        cfg = DegradationConfig(
+            particle_mechanics="swelling and cracking",
+            sei_on_cracks=True,
+        )
+        cfg.validate()  # should not raise
+        resolved = cfg.resolve()
+        assert resolved.particle_mechanics == "swelling and cracking"
+        assert resolved.sei_on_cracks is True
+
+    def test_any_enabled_with_submodel(self):
+        from battery_sim.core.degradation import DegradationConfig
+        cfg = DegradationConfig(sei_model="reaction limited")
+        assert cfg.any_enabled() is True
+
+    def test_any_enabled_false_by_default(self):
+        from battery_sim.core.degradation import DegradationConfig
+        cfg = DegradationConfig()
+        assert cfg.any_enabled() is False
+
+    def test_any_enabled_particle_mechanics(self):
+        from battery_sim.core.degradation import DegradationConfig
+        cfg = DegradationConfig(particle_mechanics="swelling only")
+        assert cfg.any_enabled() is True
+
+    def test_no_degradation_resolves_to_none(self):
+        from battery_sim.core.degradation import DegradationConfig
+        cfg = DegradationConfig()
+        resolved = cfg.resolve()
+        assert resolved.sei is None
+        assert resolved.lithium_plating is None
+        assert resolved.am_loss is None

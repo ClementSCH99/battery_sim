@@ -201,6 +201,123 @@ class CellPresets:
         )
     )
 
+    # ============ Validated PyBaMM Parameter Sets ============
+
+    # Ecker et al. 2015 — Kokam SLPB 75106100 NMC/graphite pouch cell
+    NMC_ECKER_KOKAM = CellPreset(
+        name="NMC_ECKER_KOKAM",
+        chemistry="NMC-ECKER",
+        description="Ecker et al. 2015 Kokam SLPB 75106100 NMC/graphite pouch cell. First complete open-source parameterization, 0.156 Ah single electrode pair (full cell ~7.5 Ah with 48 pairs).",
+        cell=Cell(
+            chemistry="NMC-ECKER",
+            nominal_capacity_Ah=0.15625,
+            nominal_voltage_V=3.6,
+            internal_resistance_Ohm=0.070,
+            electrode_area_m2=0.008585,
+            electrode_thickness_m=74e-6,
+            density_kg_per_m3=2350.0,
+            specific_heat_J_per_kgK=850.0,
+            thermal_conductivity_W_per_mK=10.0,
+            metadata={
+                "source": "Ecker et al., J. Electrochem. Soc., 2015",
+                "cell_format": "pouch (Kokam SLPB 75106100)",
+                "designed_for": "general characterization",
+                "anode": "graphite",
+                "cathode": "NMC",
+                "min_voltage_v": "2.5",
+                "max_voltage_v": "4.2",
+                "note": "Capacity is for a single electrode pair; full cell is ~7.5 Ah (48 pairs)",
+                "pybamm_parameter_set": "Ecker2015",
+            }
+        )
+    )
+
+    # O'Kane et al. 2022 — extended Chen2020 with full degradation sub-models
+    NMC_OKANE_AGING = CellPreset(
+        name="NMC_OKANE_AGING",
+        chemistry="NMC-OKANE",
+        description="O'Kane et al. 2022 NMC/graphite cell. Extended Chen2020 with SEI, lithium plating, and active material loss sub-models for aging studies.",
+        cell=Cell(
+            chemistry="NMC-OKANE",
+            nominal_capacity_Ah=5.0,
+            nominal_voltage_V=3.6,
+            internal_resistance_Ohm=0.070,
+            electrode_area_m2=0.050,
+            electrode_thickness_m=85e-6,
+            density_kg_per_m3=2350.0,
+            specific_heat_J_per_kgK=850.0,
+            thermal_conductivity_W_per_mK=10.0,
+            metadata={
+                "source": "O'Kane et al., Phys. Chem. Chem. Phys., 2022",
+                "cell_format": "cylindrical",
+                "designed_for": "degradation studies",
+                "anode": "graphite",
+                "cathode": "NMC",
+                "min_voltage_v": "2.5",
+                "max_voltage_v": "4.2",
+                "degradation_models": "SEI, lithium plating, active material loss",
+                "pybamm_parameter_set": "OKane2022",
+            }
+        )
+    )
+
+    # Mohtat et al. 2020 — NMC/graphite pouch cell
+    NMC_MOHTAT_POUCH = CellPreset(
+        name="NMC_MOHTAT_POUCH",
+        chemistry="NMC-MOHTAT",
+        description="Mohtat et al. 2020 NMC532/graphite pouch cell. 5 Ah capacity, designed for electrode-level differential expansion studies.",
+        cell=Cell(
+            chemistry="NMC-MOHTAT",
+            nominal_capacity_Ah=5.0,
+            nominal_voltage_V=3.6,
+            internal_resistance_Ohm=0.065,
+            electrode_area_m2=0.050,
+            electrode_thickness_m=62e-6,
+            density_kg_per_m3=2350.0,
+            specific_heat_J_per_kgK=850.0,
+            thermal_conductivity_W_per_mK=10.0,
+            metadata={
+                "source": "Mohtat et al., J. Electrochem. Soc., 2020",
+                "cell_format": "pouch",
+                "designed_for": "electrode-level analysis",
+                "anode": "graphite",
+                "cathode": "NMC",
+                "min_voltage_v": "2.8",
+                "max_voltage_v": "4.2",
+                "pybamm_parameter_set": "Mohtat2020",
+            }
+        )
+    )
+
+    # Ai et al. 2020 — Enertech NMC/graphite pouch cell
+    NMC_AI_ENERTECH = CellPreset(
+        name="NMC_AI_ENERTECH",
+        chemistry="NMC-AI",
+        description="Ai et al. 2020 Enertech NMC/graphite pouch cell. 2.28 Ah, 34 electrode pairs, with thermal-mechanical stress modelling.",
+        cell=Cell(
+            chemistry="NMC-AI",
+            nominal_capacity_Ah=2.28,
+            nominal_voltage_V=3.6,
+            internal_resistance_Ohm=0.065,
+            electrode_area_m2=0.0024,
+            electrode_thickness_m=77e-6,
+            density_kg_per_m3=2400.0,
+            specific_heat_J_per_kgK=850.0,
+            thermal_conductivity_W_per_mK=10.0,
+            metadata={
+                "source": "Ai et al., J. Electrochem. Soc., 2020",
+                "cell_format": "pouch (Enertech)",
+                "designed_for": "thermal-mechanical stress analysis",
+                "anode": "graphite",
+                "cathode": "NMC",
+                "min_voltage_v": "3.0",
+                "max_voltage_v": "4.2",
+                "electrode_pairs": "34",
+                "pybamm_parameter_set": "Ai2020",
+            }
+        )
+    )
+
     # ============ NMC High Energy (for EVs) ============
     NMC_HE_50AH = CellPreset(
         name="NMC_HE_50AH",
