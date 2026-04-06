@@ -18,12 +18,12 @@ import pytest
 
 from battery_sim.core.cell import Cell
 from battery_sim.core.model import Model
-from battery_sim.core.protocol import Protocol, ConstantCurrent, CC_CV
+from battery_sim.core.protocol import Protocol, ConstantCurrent, CC_CV, PowerStep, DriveProfile, Rest
 from battery_sim.core.environment import Environment
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.simulation_run import SimulationRun
 from battery_sim.core.solver import SolverConfig
-from battery_sim.backend.pybamm_backend import PyBaMMBackend
+from battery_sim.backend.pybamm_backend import PyBaMMBackend, translate_protocol_to_pybamm
 from battery_sim.types.signal import Signal
 
 @pytest.fixture(scope="module")
@@ -601,3 +601,203 @@ class TestValidatedParameterSetPresets:
             f"Voltage out of physical range for {preset_name}: "
             f"min={min(voltage.values):.3f}, max={max(voltage.values):.3f}"
         )
+
+
+@pytest.mark.slow
+class TestPowerStep:
+    """PowerStep constant-power discharge/charge runs end-to-end."""
+
+    def test_power_discharge_returns_simulation_run(self, backend):
+        """LFP_5AH, 10 W discharge for 60 s."""
+        cell = Cell.preset("LFP_5AH")
+        protocol = Protocol.power(power_W=10.0, duration_s=60)
+        
+        sim = Simulation(
+            cell=cell,
+            model=Model.SPM,
+            protocol=protocol,
+            environment=Environment(temperature_C=25.0),
+            solver_config=SolverConfig(),
+        )
+        run = sim.run(backend)
+
+        assert isinstance(run, SimulationRun), (
+            f"Expected SimulationRun, got {type(run).__name__}"
+        )
+        assert run.metadata.success, (
+            "PyBaMM solver did not report success for PowerStep discharge"
+        )
+        assert len(run.available_signals()) > 0, (
+            "SimulationRun should expose at least one signal"
+        )
+
+    def test_power_charge_returns_simulation_run(self, backend):
+        """LFP_5AH, -5 W charge for 60 s."""
+        cell = Cell.preset("LFP_5AH")
+        protocol = Protocol.power(power_W=-5.0, duration_s=60)
+        
+        sim = Simulation(
+            cell=cell,
+            model=Model.SPM,
+            protocol=protocol,
+            environment=Environment(temperature_C=25.0),
+            solver_config=SolverConfig(initial_soc=0.2),
+        )
+        run = sim.run(backend)
+
+        assert isinstance(run, SimulationRun)
+        assert run.metadata.success, (
+            "PyBaMM solver did not report success for PowerStep charge"
+        )
+
+    def test_power_composition_with_rest(self, backend):
+        """PowerStep discharge + rest produces correct PyBaMM experiment string."""
+        from battery_sim.backend.pybamm_backend import translate_protocol_to_pybamm
+        
+        protocol = Protocol.power(power_W=10.0, duration_s=3600) + Protocol.rest(duration_s=600)
+        
+        experiment_strings = translate_protocol_to_pybamm(protocol)
+        
+        assert len(experiment_strings) == 2, (
+            f"Expected 2 experiment strings, got {len(experiment_strings)}"
+        )
+        assert "Discharge at 10.0 W for 3600 seconds" in experiment_strings[0], (
+            f"Unexpected discharge string: {experiment_strings[0]}"
+        )
+        assert "Rest for 600 seconds" in experiment_strings[1], (
+            f"Unexpected rest string: {experiment_strings[1]}"
+        )
+
+    def test_power_pybamm_translation_discharge(self, backend):
+        """PowerStep positive power translates to 'Discharge at X W'."""
+        from battery_sim.backend.pybamm_backend import translate_protocol_to_pybamm
+        
+        protocol = Protocol.power(power_W=15.0, duration_s=1800)
+        experiment_strings = translate_protocol_to_pybamm(protocol)
+        
+        assert len(experiment_strings) == 1
+        assert "Discharge at 15.0 W for 1800 seconds" == experiment_strings[0]
+
+    def test_power_pybamm_translation_charge(self, backend):
+        """PowerStep negative power translates to 'Charge at |X| W'."""
+        from battery_sim.backend.pybamm_backend import translate_protocol_to_pybamm
+        
+        protocol = Protocol.power(power_W=-5.0, duration_s=900)
+        experiment_strings = translate_protocol_to_pybamm(protocol)
+        
+        assert len(experiment_strings) == 1
+        assert "Charge at 5.0 W for 900 seconds" == experiment_strings[0]
+
+
+@pytest.mark.slow
+class TestDriveCycle:
+    """Drive cycle EV profiles run end-to-end."""
+
+    def test_wltp_drive_cycle_returns_simulation_run(self, backend):
+        """WLTP cycle discharge for LFP_5AH."""
+        cell = Cell.preset("LFP_5AH")
+        protocol = Protocol.drive_cycle(
+            "WLTP",
+            vehicle_mass_kg=1800,
+            peak_power_kW=150.0
+        )
+        
+        sim = Simulation(
+            cell=cell,
+            model=Model.SPM,
+            protocol=protocol,
+            environment=Environment(temperature_C=25.0),
+            solver_config=SolverConfig(),
+        )
+        run = sim.run(backend)
+
+        assert isinstance(run, SimulationRun)
+        assert run.metadata.success, "WLTP cycle simulation failed"
+        assert len(run.available_signals()) > 0
+
+    def test_us06_drive_cycle_returns_simulation_run(self, backend):
+        """US06 aggressive cycle discharge."""
+        cell = Cell.preset("LFP_5AH")
+        protocol = Protocol.drive_cycle(
+            "US06",
+            vehicle_mass_kg=1600,
+            peak_power_kW=200.0
+        )
+        
+        sim = Simulation(
+            cell=cell,
+            model=Model.SPM,
+            protocol=protocol,
+            environment=Environment(temperature_C=25.0),
+            solver_config=SolverConfig(),
+        )
+        run = sim.run(backend)
+
+        assert isinstance(run, SimulationRun)
+        assert run.metadata.success
+
+    def test_udds_urban_cycle(self, backend):
+        """UDDS urban stop-and-go cycle."""
+        cell = Cell.preset("LFP_5AH")
+        protocol = Protocol.drive_cycle(
+            "UDDS",
+            vehicle_mass_kg=1500,
+            peak_power_kW=100.0
+        )
+        
+        sim = Simulation(
+            cell=cell,
+            model=Model.SPM,
+            protocol=protocol,
+            environment=Environment(temperature_C=25.0),
+            solver_config=SolverConfig(),
+        )
+        run = sim.run(backend)
+
+        assert isinstance(run, SimulationRun)
+        assert run.metadata.success
+
+    def test_drive_cycle_pybamm_translation(self, backend):
+        """Drive cycle translates to correct PyBaMM experiment strings."""
+        protocol = Protocol.drive_cycle("US06", peak_power_kW=100.0)
+        experiment_strings = translate_protocol_to_pybamm(protocol)
+        
+        # US06 should have multiple segments
+        assert len(experiment_strings) > 5
+        
+        # All should be power-based strings (W, not A)
+        for s in experiment_strings:
+            assert " W for " in s or " W until " in s
+
+    def test_drive_cycle_composition_with_rest(self, backend):
+        """Drive cycle can be composed with rest steps."""
+        protocol = Protocol.drive_cycle("WLTP") + Protocol.rest(600)
+        
+        assert len(protocol.steps) == 2
+        assert isinstance(protocol.steps[0], DriveProfile)
+        assert isinstance(protocol.steps[1], Rest)
+
+    def test_drive_cycle_total_duration(self, backend):
+        """Drive cycle total duration should be reasonable."""
+        protocol = Protocol.drive_cycle("UDDS")
+        duration = protocol.total_duration_s()
+        
+        # UDDS is ~1370s
+        assert 1300 < duration < 1450, f"Unexpected UDDS duration: {duration}"
+
+    def test_multiple_cycles_composition(self, backend):
+        """Multiple drive cycles can be composed in sequence."""
+        protocol = (
+            Protocol.drive_cycle("US06") +
+            Protocol.rest(300) +
+            Protocol.drive_cycle("WLTP")
+        )
+        
+        assert len(protocol.steps) == 3
+        assert isinstance(protocol.steps[0], DriveProfile)
+        assert isinstance(protocol.steps[1], Rest)
+        assert isinstance(protocol.steps[2], DriveProfile)
+        
+        # Total should be US06 + rest + WLTP
+        total_duration = protocol.total_duration_s()
+        assert total_duration > 2000  # Both cycles are ~600-1800s

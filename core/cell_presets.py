@@ -11,13 +11,63 @@ from typing import Dict, Optional
 from battery_sim.core.cell import Cell
 
 
-@dataclass(frozen=True)
+@dataclass
 class CellPreset:
-    """A preset battery cell configuration with documentation."""
+    """
+    A preset battery cell configuration with documentation and EV-relevant metadata.
+    
+    Physical metadata fields (weight, volume, cost) enable computation of EV-relevant
+    metrics like energy density and cost per kWh critical for vehicle design tradeoffs.
+    """
     name: str
     chemistry: str
     description: str
     cell: Cell
+    weight_kg: float = 0.0                          # Cell weight in kg
+    volume_L: float = 0.0                           # Cell volume in liters
+    cost_usd: float = 0.0                           # Estimated cell cost in USD
+    max_charge_c_rate: float = 1.0                  # Max recommended charge C-rate
+    max_discharge_c_rate: float = 2.0               # Max recommended discharge C-rate
+    
+    @property
+    def nominal_energy_Wh(self) -> float:
+        """Nominal energy in Wh: capacity × voltage."""
+        return self.cell.nominal_capacity_Ah * self.cell.nominal_voltage_V
+    
+    @property
+    def energy_density_Wh_per_kg(self) -> float:
+        """Gravimetric energy density (Wh/kg) — critical for weight-sensitive EVs."""
+        if self.weight_kg <= 0:
+            return 0.0
+        return self.nominal_energy_Wh / self.weight_kg
+    
+    @property
+    def energy_density_Wh_per_L(self) -> float:
+        """Volumetric energy density (Wh/L) — critical for space-constrained EVs."""
+        if self.volume_L <= 0:
+            return 0.0
+        return self.nominal_energy_Wh / self.volume_L
+    
+    @property
+    def cost_per_kWh(self) -> float:
+        """Cost per kWh ($/kWh) — critical for EV affordability."""
+        if self.nominal_energy_Wh <= 0:
+            return 0.0
+        return (self.cost_usd / self.nominal_energy_Wh) * 1000
+    
+    @property
+    def cycle_life_cycles(self) -> int:
+        """Extract cycle life from metadata if available."""
+        if "cycle_life" not in self.cell.metadata:
+            return 0
+        cycle_str = self.cell.metadata["cycle_life"]
+        # Parse "3000-5000" format, return lower bound
+        if "-" in cycle_str:
+            return int(cycle_str.split("-")[0])
+        try:
+            return int(cycle_str)
+        except (ValueError, TypeError):
+            return 0
 
 
 class CellPresets:
@@ -50,7 +100,12 @@ class CellPresets:
                 "cycle_life": "3000-5000",
                 "source": "CATL/BYD specifications"
             }
-        )
+        ),
+        weight_kg=0.100,                            # ~100g typical for 5Ah
+        volume_L=0.050,                             # ~50mL typical
+        cost_usd=3.00,                              # ~$3 for commodity LFP cell
+        max_charge_c_rate=1.0,                      # 1C charging (5A)
+        max_discharge_c_rate=3.0,                   # 3C discharging (15A)
     )
 
     LFP_10AH = CellPreset(
@@ -74,7 +129,12 @@ class CellPresets:
                 "cycle_life": "3000-5000",
                 "source": "CATL/BYD specifications"
             }
-        )
+        ),
+        weight_kg=0.200,                            # 2× weight of 5Ah
+        volume_L=0.100,                             # 2× volume of 5Ah
+        cost_usd=6.00,                              # ~$6 for 10Ah LFP
+        max_charge_c_rate=1.0,                      # 1C charging (10A)
+        max_discharge_c_rate=3.0,                   # 3C discharging (30A)
     )
 
     # ============ NMC (LiNi₀.₆Mn₀.₂Co₀.₂O₂) - High energy, medium cycle life ============
@@ -99,7 +159,12 @@ class CellPresets:
                 "cycle_life": "1000-2000",
                 "source": "Samsung/LG specifications"
             }
-        )
+        ),
+        weight_kg=0.070,                            # ~70g for high-energy NMC
+        volume_L=0.035,                             # ~35mL
+        cost_usd=4.00,                              # ~$4 for higher energy NMC
+        max_charge_c_rate=1.0,                      # 1C charging
+        max_discharge_c_rate=3.0,                   # 3C discharging
     )
 
     NMC_10AH = CellPreset(
@@ -123,7 +188,12 @@ class CellPresets:
                 "cycle_life": "1000-2000",
                 "source": "Samsung/LG specifications"
             }
-        )
+        ),
+        weight_kg=0.140,                            # 2× weight of 5Ah
+        volume_L=0.070,                             # 2× volume of 5Ah
+        cost_usd=8.00,                              # ~$8 for 10Ah NMC
+        max_charge_c_rate=1.0,
+        max_discharge_c_rate=3.0,
     )
 
     # ============ NCA (LiNi₀.₈Co₀.₁Al₀.₁O₂) - Very high energy, shorter cycle life ============
@@ -148,7 +218,12 @@ class CellPresets:
                 "cycle_life": "800-1200",
                 "source": "Tesla/Panasonic specifications"
             }
-        )
+        ),
+        weight_kg=0.065,                            # Slightly lighter, high energy density
+        volume_L=0.032,                             # Smallest volume for same energy
+        cost_usd=4.50,                              # ~$4.50 for premium NCA
+        max_charge_c_rate=0.7,                      # Lower charge C-rate than NMC
+        max_discharge_c_rate=3.0,                   # Good discharge performance
     )
 
     # ============ LCO (LiCoO₂) - High voltage, lower cycle life, expensive ============
@@ -173,7 +248,12 @@ class CellPresets:
                 "cycle_life": "500-800",
                 "source": "Sony/Samsung specifications"
             }
-        )
+        ),
+        weight_kg=0.050,                            # Lightweight but high cost
+        volume_L=0.025,                             # Small volume
+        cost_usd=3.50,                              # ~$3.50 despite lower cycle life
+        max_charge_c_rate=0.8,                      # More conservative
+        max_discharge_c_rate=2.5,                   # Lower discharge C-rate
     )
 
     # ============ LMNO (LiMn₂O₄) - Safe, good thermal stability, lower energy ============
@@ -198,7 +278,12 @@ class CellPresets:
                 "cycle_life": "2000-3000",
                 "source": "Electrochem literature"
             }
-        )
+        ),
+        weight_kg=0.080,                            # Heavier chemistry
+        volume_L=0.040,                             # Similar volume to 5Ah NMC
+        cost_usd=3.50,                              # ~$3.50 for safe chemistry
+        max_charge_c_rate=1.0,
+        max_discharge_c_rate=2.5,
     )
 
     # ============ Validated PyBaMM Parameter Sets ============
@@ -229,7 +314,12 @@ class CellPresets:
                 "note": "Capacity is for a single electrode pair; full cell is ~7.5 Ah (48 pairs)",
                 "pybamm_parameter_set": "Ecker2015",
             }
-        )
+        ),
+        weight_kg=0.002,                            # ~2g for single pair
+        volume_L=0.001,                             # ~1mL for single pair
+        cost_usd=0.05,                              # Research prototype
+        max_charge_c_rate=1.0,
+        max_discharge_c_rate=1.0,
     )
 
     # O'Kane et al. 2022 — extended Chen2020 with full degradation sub-models
@@ -258,7 +348,12 @@ class CellPresets:
                 "degradation_models": "SEI, lithium plating, active material loss",
                 "pybamm_parameter_set": "OKane2022",
             }
-        )
+        ),
+        weight_kg=0.070,                            # Typical 5Ah NMC
+        volume_L=0.035,
+        cost_usd=4.00,
+        max_charge_c_rate=1.0,
+        max_discharge_c_rate=3.0,
     )
 
     # Mohtat et al. 2020 — NMC/graphite pouch cell
@@ -286,7 +381,12 @@ class CellPresets:
                 "max_voltage_v": "4.2",
                 "pybamm_parameter_set": "Mohtat2020",
             }
-        )
+        ),
+        weight_kg=0.070,
+        volume_L=0.035,
+        cost_usd=4.00,
+        max_charge_c_rate=1.0,
+        max_discharge_c_rate=3.0,
     )
 
     # Ai et al. 2020 — Enertech NMC/graphite pouch cell
@@ -315,7 +415,12 @@ class CellPresets:
                 "electrode_pairs": "34",
                 "pybamm_parameter_set": "Ai2020",
             }
-        )
+        ),
+        weight_kg=0.032,                            # ~32g for 2.28Ah
+        volume_L=0.016,
+        cost_usd=2.00,
+        max_charge_c_rate=1.0,
+        max_discharge_c_rate=3.0,
     )
 
     # ============ NMC High Energy (for EVs) ============
@@ -341,7 +446,12 @@ class CellPresets:
                 "format": "Cylindrical 18650 or prismatic",
                 "source": "EV battery specifications"
             }
-        )
+        ),
+        weight_kg=0.700,                            # ~700g for 50Ah (scaled)
+        volume_L=0.350,                             # ~350mL for 50Ah
+        cost_usd=40.00,                             # ~$40 for large capacity NMC
+        max_charge_c_rate=1.0,                      # 1C = 50A
+        max_discharge_c_rate=3.0,                   # 3C = 150A
     )
 
     # ============ LFP High Power ============
@@ -367,7 +477,12 @@ class CellPresets:
                 "max_power_kw": "10",
                 "source": "BYD/CATL high power specs"
             }
-        )
+        ),
+        weight_kg=0.400,                            # ~400g for 20Ah (2× weight of 10Ah)
+        volume_L=0.200,                             # ~200mL for 20Ah
+        cost_usd=12.00,                             # ~$12 for high-power LFP
+        max_charge_c_rate=2.0,                      # 2C = 40A (high power)
+        max_discharge_c_rate=4.0,                   # 4C = 80A (very high power)
     )
 
     @classmethod

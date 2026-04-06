@@ -58,7 +58,7 @@ Keep it concise and actionable.
 Now that your plan is craeted, Transform a development plan into executable tasks.
 
 # INSTRUCTIONS
-- Create one .prompt.md file per task in /tasks/
+- Create one .prompt.md file per task in .github/prompts
 - Each task must be executable in one Agent session
 - Keep tasks small, logical, and independent
 
@@ -147,6 +147,7 @@ Review recent work, validate integration, and prepare commit.
 
 # INPUT
 - Codebase
+- /.github/prompts
 - /docs/reports/*.md
 
 # TASKS

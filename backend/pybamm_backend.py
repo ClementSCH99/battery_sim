@@ -11,7 +11,7 @@ from battery_sim.core.environment import Environment
 from battery_sim.core.model import Model
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.simulation_backend import SimulationBackend
-from battery_sim.core.protocol import Protocol, ConstantCurrent, Rest, CC_CV, CycleDefinition
+from battery_sim.core.protocol import Protocol, ConstantCurrent, Rest, CC_CV, PowerStep, DriveProfile, CycleDefinition
 from battery_sim.core.result import Result
 from battery_sim.core.solver import Solver, SolverConfig
 from battery_sim.types.timeseries import TimeSeries
@@ -38,6 +38,18 @@ def _translate_steps_to_pybamm(steps) -> list[str]:
                 strings.append(f"Discharge at {step.current_A} A for {step._duration_s} seconds")
             else:
                 strings.append(f"Charge at {abs(step.current_A)} A for {step._duration_s} seconds")
+        elif isinstance(step, PowerStep):
+            if step.power_W > 0:
+                strings.append(f"Discharge at {step.power_W} W for {step._duration_s} seconds")
+            else:
+                strings.append(f"Charge at {abs(step.power_W)} W for {step._duration_s} seconds")
+        elif isinstance(step, DriveProfile):
+            # Translate drive profile as a sequence of constant-power steps
+            for power_W, duration_s in step.segments:
+                if power_W > 0:
+                    strings.append(f"Discharge at {power_W} W for {duration_s} seconds")
+                else:
+                    strings.append(f"Charge at {abs(power_W)} W for {duration_s} seconds")
         elif isinstance(step, Rest):
             strings.append(f"Rest for {step._duration_s} seconds")
         elif isinstance(step, CC_CV):

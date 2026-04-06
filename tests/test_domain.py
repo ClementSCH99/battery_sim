@@ -18,11 +18,20 @@ LEARNING NOTES:
 import pytest
 
 from battery_sim.core.cell import Cell
-from battery_sim.core.protocol import Protocol, ConstantCurrent, Rest, CC_CV, Step
+from battery_sim.core.protocol import Protocol, ConstantCurrent, Rest, CC_CV, PowerStep, DriveProfile, Step
 from battery_sim.core.environment import Environment
 from battery_sim.core.solver import SolverConfig, Solver
 from battery_sim.core.model import Model
 from battery_sim.core.simulation import Simulation
+from battery_sim.core.drive_cycles import (
+    DriveCycleProfile,
+    get_drive_cycle,
+    list_drive_cycles,
+    scale_drive_cycle,
+    WLTP_CLASS3,
+    US06,
+    UDDS,
+)
 from battery_sim.core.exceptions import (
     CellValidationError,
     ProtocolValidationError,
@@ -136,6 +145,20 @@ class TestProtocolFactories:
         assert len(proto.steps) == 1
         assert isinstance(proto.steps[0], CC_CV)
 
+    def test_power_creates_single_power_step(self):
+        proto = Protocol.power(power_W=10.0, duration_s=3600)
+        assert len(proto.steps) == 1
+        assert isinstance(proto.steps[0], PowerStep)
+        assert proto.steps[0].power_W == 10.0
+        assert proto.steps[0].duration_s() == 3600
+
+    def test_power_negative_allowed(self):
+        """Negative power = charge. That's a valid protocol."""
+        proto = Protocol.power(power_W=-5.0, duration_s=1800)
+        assert len(proto.steps) == 1
+        assert isinstance(proto.steps[0], PowerStep)
+        assert proto.steps[0].power_W == -5.0
+
 
 class TestProtocolValidation:
 
@@ -164,6 +187,22 @@ class TestProtocolValidation:
         with pytest.raises(ProtocolValidationError):
             proto.validate()
 
+    def test_zero_power_rejected(self):
+        """Zero power is physically meaningless."""
+        proto = Protocol.power(power_W=0, duration_s=3600)
+        with pytest.raises(ProtocolValidationError):
+            proto.validate()
+
+    def test_valid_power_discharge_passes(self):
+        """Positive power = discharge."""
+        proto = Protocol.power(power_W=10.0, duration_s=3600)
+        proto.validate()
+
+    def test_valid_power_charge_passes(self):
+        """Negative power = charge."""
+        proto = Protocol.power(power_W=-5.0, duration_s=1800)
+        proto.validate()
+
 
 class TestProtocolCombination:
     """Protocol.__add__ merges step lists."""
@@ -187,6 +226,192 @@ class TestProtocolCombination:
         combined = cc + cccv
         # CC_CV.duration_s() returns None → skipped, only CC counted
         assert combined.total_duration_s() == 60.0
+
+    def test_power_composition(self):
+        """PowerStep can be composed with other protocols."""
+        p = Protocol.power(power_W=10.0, duration_s=3600) + Protocol.rest(duration_s=600)
+        assert len(p.steps) == 2
+        assert isinstance(p.steps[0], PowerStep)
+        assert isinstance(p.steps[1], Rest)
+        assert p.total_duration_s() == 4200.0
+
+
+# ============================================================================
+# Drive Cycles
+# ============================================================================
+
+class TestDriveCycleProfiles:
+    """DriveCycleProfile creation and lookup."""
+
+    def test_list_drive_cycles_not_empty(self):
+        cycles = list_drive_cycles()
+        assert isinstance(cycles, list)
+        assert len(cycles) > 0
+        assert all(isinstance(name, str) for name in cycles)
+
+    def test_wltp_in_registry(self):
+        cycles = list_drive_cycles()
+        assert "WLTP" in cycles or "WLTP_CLASS3" in cycles
+
+    def test_get_drive_cycle_wltp(self):
+        profile = get_drive_cycle("WLTP")
+        assert isinstance(profile, DriveCycleProfile)
+        assert profile.name == "WLTP Class 3"
+        assert len(profile.time_s) >= 2
+        assert len(profile.power_normalized) == len(profile.time_s)
+
+    def test_get_drive_cycle_us06(self):
+        profile = get_drive_cycle("US06")
+        assert isinstance(profile, DriveCycleProfile)
+        assert profile.name == "US06"
+        assert len(profile.time_s) >= 2
+
+    def test_get_drive_cycle_udds(self):
+        profile = get_drive_cycle("UDDS")
+        assert isinstance(profile, DriveCycleProfile)
+        assert profile.name == "UDDS"
+        assert len(profile.time_s) >= 2
+
+    def test_get_drive_cycle_case_insensitive(self):
+        """Lookup should be case-insensitive."""
+        profile1 = get_drive_cycle("wltp")
+        profile2 = get_drive_cycle("WLTP")
+        assert profile1.name == profile2.name
+
+    def test_get_drive_cycle_unknown_raises(self):
+        """Unknown cycle name should raise KeyError."""
+        with pytest.raises(KeyError):
+            get_drive_cycle("NONEXISTENT_CYCLE")
+
+    def test_built_in_profiles_valid(self):
+        """All built-in profiles should pass validation."""
+        for profile in [WLTP_CLASS3, US06, UDDS]:
+            # Check monotonic time
+            assert all(
+                profile.time_s[i] < profile.time_s[i + 1]
+                for i in range(len(profile.time_s) - 1)
+            )
+            # Check power in [0, 1]
+            assert all(0.0 <= p <= 1.0 for p in profile.power_normalized)
+
+
+class TestScaleDriveCycle:
+    """Drive cycle scaling and discretization."""
+
+    def test_scale_drive_cycle_basic(self):
+        profile = get_drive_cycle("WLTP")
+        segments = scale_drive_cycle(profile, peak_power_kW=150.0)
+        
+        assert isinstance(segments, list)
+        assert len(segments) > 0
+        # Should have (power_W, duration_s) tuples
+        for power_W, duration_s in segments:
+            assert isinstance(power_W, float)
+            assert isinstance(duration_s, float)
+
+    def test_scale_drive_cycle_power_in_watts(self):
+        profile = get_drive_cycle("US06")
+        segments = scale_drive_cycle(profile, peak_power_kW=100.0)
+        
+        # With 100 kW peak, max power should be 100,000 W
+        max_power = max(abs(p) for p, _ in segments)
+        assert max_power <= 100_000.0
+
+    def test_scale_drive_cycle_duration_preserved(self):
+        """Total duration should equal cycle's max time."""
+        profile = get_drive_cycle("UDDS")
+        segments = scale_drive_cycle(profile, peak_power_kW=150.0)
+        
+        total_duration = sum(duration for _, duration in segments)
+        expected_duration = profile.time_s[-1] - profile.time_s[0]
+        
+        assert abs(total_duration - expected_duration) < 0.1
+
+    def test_scale_with_different_peak_powers(self):
+        profile = get_drive_cycle("WLTP")
+        segments_100 = scale_drive_cycle(profile, peak_power_kW=100.0)
+        segments_200 = scale_drive_cycle(profile, peak_power_kW=200.0)
+        
+        # Powers should scale proportionally
+        for (p1, d1), (p2, d2) in zip(segments_100, segments_200):
+            # Duration should be the same
+            assert d1 == d2
+            # Power should scale ~2x
+            if p1 != 0:
+                assert abs(p2 / p1 - 2.0) < 0.01
+
+
+class TestDriveProfile:
+    """DriveProfile step creation and validation."""
+
+    def test_drive_profile_creates_basic(self):
+        segments = [(10_000, 60), (15_000, 120)]
+        profile = DriveProfile(segments=segments, cycle_name="test")
+        
+        assert len(profile.segments) == 2
+        assert profile.cycle_name == "test"
+
+    def test_drive_profile_duration_s(self):
+        segments = [(10_000, 60), (15_000, 120)]
+        profile = DriveProfile(segments=segments)
+        
+        assert profile.duration_s() == 180.0
+
+    def test_drive_profile_empty_segments_rejected(self):
+        """Empty segments list should be rejected."""
+        with pytest.raises(ProtocolValidationError):
+            DriveProfile(segments=[], cycle_name="empty")
+
+    def test_protocol_drive_cycle_wltp_creates_protocol(self):
+        """Protocol.drive_cycle() should create a valid protocol."""
+        protocol = Protocol.drive_cycle("WLTP")
+        
+        assert len(protocol.steps) == 1
+        assert isinstance(protocol.steps[0], DriveProfile)
+        
+        # Should have many segments (one per time interval in WLTP)
+        drive_profile = protocol.steps[0]
+        assert len(drive_profile.segments) > 10
+
+    def test_protocol_drive_cycle_us06_with_custom_power(self):
+        """Protocol.drive_cycle() should scale by peak power."""
+        protocol = Protocol.drive_cycle(
+            "US06",
+            vehicle_mass_kg=1600,
+            peak_power_kW=200.0
+        )
+        
+        drive_profile = protocol.steps[0]
+        max_power = max(abs(p) for p, _ in drive_profile.segments)
+        
+        # Max power should be ~200 kW
+        assert max_power <= 200_000.0
+
+    def test_protocol_drive_cycle_unknown_raises(self):
+        """Unknown cycle name should raise KeyError."""
+        with pytest.raises(KeyError):
+            Protocol.drive_cycle("INVALID_CYCLE")
+
+    def test_drive_profile_composition_with_rest(self):
+        """DriveProfile can be composed with Rest steps."""
+        protocol = Protocol.drive_cycle("UDDS") + Protocol.rest(600)
+        
+        assert len(protocol.steps) == 2
+        assert isinstance(protocol.steps[0], DriveProfile)
+        assert isinstance(protocol.steps[1], Rest)
+
+    def test_drive_profile_total_duration(self):
+        """Protocol.total_duration_s() should work for DriveProfile."""
+        protocol = Protocol.drive_cycle("US06") + Protocol.rest(300)
+        total_duration = protocol.total_duration_s()
+        
+        # US06 is ~600s + rest 300s = 900s
+        assert 800 < total_duration < 1000
+
+    def test_protocol_drive_cycle_validates(self):
+        """Drive cycle protocol should pass validation."""
+        protocol = Protocol.drive_cycle("WLTP")
+        protocol.validate()  # Should not raise
 
 
 # ============================================================================

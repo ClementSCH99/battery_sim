@@ -1,7 +1,10 @@
 # battery_sim/core/protocol.py
 from dataclasses import dataclass
 from battery_sim.core.exceptions import ProtocolValidationError
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from battery_sim.core.drive_cycles import DriveCycleProfile
 
 
 @dataclass(frozen=True)
@@ -28,6 +31,47 @@ class Rest(Step):
 
     def duration_s(self) -> float:
         return self._duration_s
+
+
+@dataclass(frozen=True)
+class PowerStep(Step):
+    """Step that drives a cell at constant power (watts) for a given duration.
+    
+    Convention:
+    - Positive power (watts) = discharge
+    - Negative power (watts) = charge
+    """
+    power_W: float
+    _duration_s: float
+
+    def duration_s(self) -> float:
+        return self._duration_s
+
+
+@dataclass(frozen=True)
+class DriveProfile(Step):
+    """Drive profile step: sequence of constant-power segments from a drive cycle.
+    
+    A drive profile discretizes an EV drive cycle (e.g., WLTP) into a sequence
+    of constant-power segments suitable for battery simulation.
+    
+    Attributes:
+        segments: List of (power_W, duration_s) tuples
+        cycle_name: Name of the original drive cycle (for logging/traceability)
+    """
+    segments: list[tuple[float, float]]
+    cycle_name: str = "custom"
+
+    def duration_s(self) -> float:
+        """Total duration of all segments."""
+        return sum(duration for _, duration in self.segments)
+
+    def __post_init__(self):
+        """Validate segments."""
+        if not self.segments:
+            raise ProtocolValidationError(
+                "DriveProfile must have at least one segment"
+            )
 
 
 @dataclass(frozen=True)
@@ -92,6 +136,18 @@ class Protocol:
                         f"ConstantCurrent step at index {i}: current must be different than 0A - Protocol not valide"
                     )
                 
+            if isinstance(step, PowerStep):
+                if step.power_W == 0:
+                    raise ProtocolValidationError(
+                        f"PowerStep at index {i}: power must be different than 0 W - Protocol not valide"
+                    )
+            
+            if isinstance(step, DriveProfile):
+                if not step.segments:
+                    raise ProtocolValidationError(
+                        f"DriveProfile at index {i}: must have at least one segment - Protocol not valide"
+                    )
+            
             if isinstance(step, CC_CV):
                 if not step.charge_current_A > 0:
                     raise ProtocolValidationError(
@@ -114,6 +170,10 @@ class Protocol:
     @staticmethod
     def cc(current_A: float, duration_s: float) -> "Protocol":
         return Protocol([ConstantCurrent(current_A, duration_s)])
+
+    @staticmethod
+    def power(power_W: float, duration_s: float) -> "Protocol":
+        return Protocol([PowerStep(power_W, duration_s)])
 
     @staticmethod
     def rest(duration_s: float) -> "Protocol":
@@ -160,3 +220,40 @@ class Protocol:
             n_cycles=n_cycles,
             cycle_definition=cycle_def,
         )
+
+    @classmethod
+    def drive_cycle(
+        cls,
+        cycle_name: str,
+        vehicle_mass_kg: float = 1800.0,
+        peak_power_kW: float = 150.0,
+    ) -> "Protocol":
+        """Create a drive cycle protocol from a standard EV profile.
+        
+        Loads a named drive cycle (e.g., "WLTP", "US06"), scales it by vehicle
+        parameters, and discretizes into constant-power segments.
+        
+        Args:
+            cycle_name: Drive cycle name (e.g., "WLTP", "US06", "UDDS")
+            vehicle_mass_kg: Vehicle mass in kg (default 1800 kg, typical compact car)
+            peak_power_kW: Peak available power in kW (default 150 kW, typical EV)
+        
+        Returns:
+            Protocol with DriveProfile step containing power-duration segments
+        
+        Raises:
+            KeyError: If cycle_name not found in drive cycle library
+        """
+        from battery_sim.core.drive_cycles import get_drive_cycle, scale_drive_cycle
+        
+        # Load the normalized profile
+        profile = get_drive_cycle(cycle_name)
+        
+        # Scale to vehicle parameters
+        segments = scale_drive_cycle(profile, vehicle_mass_kg, peak_power_kW)
+        
+        # Create DriveProfile step with all segments
+        drive_profile = DriveProfile(segments=segments, cycle_name=cycle_name)
+        
+        return cls(steps=[drive_profile])
+

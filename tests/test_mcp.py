@@ -103,6 +103,15 @@ EXPECTED_TOOLS = {
     "sensitivity_analysis",
     "check_feasibility",
     "get_session_summary",
+    "predict_lifetime",
+    "warranty_analysis",
+    "optimize_charging",
+    "operating_window",
+    "derating_curves",
+    "estimate_range",
+    "compare_charging_strategies",
+    "pack_sizing",
+    "cell_selection_wizard",
 }
 
 

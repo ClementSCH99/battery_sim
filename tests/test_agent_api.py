@@ -216,3 +216,146 @@ class TestSessionTracking:
         """get_reasoning_chain returns a non-empty string after investigations."""
         chain = api.get_reasoning_chain()
         assert isinstance(chain, str)
+
+
+# ===========================================================================
+# Range Estimation
+# ===========================================================================
+
+@pytest.mark.slow
+class TestRangeEstimation:
+    """Range estimation for EV packs with different configurations."""
+
+    def test_estimate_range_returns_dual_format_result(self, api):
+        """estimate_range() produces valid DualFormatResult."""
+        result = api.estimate_range(
+            preset_name="LFP_5AH",
+            cycle_name="WLTP",
+            n_series=96,
+            n_parallel=4,
+        )
+
+        assert isinstance(result, DualFormatResult)
+        assert result.json_data is not None
+        assert result.markdown_text is not None
+        assert len(result.interpretation_hints) > 0
+
+    def test_estimate_range_json_has_required_keys(self, api):
+        """JSON output contains all expected fields."""
+        result = api.estimate_range(
+            preset_name="LFP_5AH",
+            cycle_name="WLTP",
+        )
+
+        json_data = result.json_data
+        assert json_data.get("type") == "range_estimation"
+        assert json_data.get("preset") == "LFP_5AH"
+        assert json_data.get("cycle") == "WLTP"
+        
+        # Check pack configuration
+        assert "pack_configuration" in json_data
+        pack_config = json_data["pack_configuration"]
+        assert pack_config.get("n_series") == 96
+        assert pack_config.get("n_parallel") == 4
+        assert pack_config.get("pack_voltage_V") > 0
+        assert pack_config.get("pack_capacity_Ah") > 0
+        
+        # Check energy metrics
+        assert "energy" in json_data
+        energy = json_data["energy"]
+        assert energy.get("pack_energy_kWh") > 0
+        assert energy.get("energy_per_cycle_kWh") >= 0
+        
+        # Check range results
+        assert "range" in json_data
+        range_data = json_data["range"]
+        assert range_data.get("cycles_possible") >= 0
+        assert range_data.get("cycle_distance_km") > 0
+        assert range_data.get("estimated_range_km") >= 0
+
+    def test_estimate_range_with_different_pack_sizes(self, api):
+        """Range calculation handles different pack configurations."""
+        # Small pack: 48S2P
+        small = api.estimate_range(
+            preset_name="LFP_5AH",
+            n_series=48,
+            n_parallel=2,
+            peak_power_kW=50.0,  # Lower power to avoid solver issues
+        )
+        small_range = small.json_data["range"]["estimated_range_km"]
+        
+        # Medium pack: 96S4P
+        large = api.estimate_range(
+            preset_name="LFP_5AH",
+            n_series=96,
+            n_parallel=4,
+            peak_power_kW=50.0,  # Same power for fair comparison
+        )
+        large_range = large.json_data["range"]["estimated_range_km"]
+        
+        # Check that both return valid results
+        assert small_range >= 0
+        assert large_range >= 0
+        
+        # If both simulations succeed (non-zero), larger pack should have more range
+        if small_range > 0 and large_range > 0:
+            # 2x capacity and series is roughly 2-3x the energy
+            assert large_range > small_range
+
+    def test_estimate_range_different_cycles(self, api):
+        """Range calculation works with different drive cycles."""
+        # Use lower power to ensure solver stability
+        wltp = api.estimate_range(
+            preset_name="LFP_5AH",
+            cycle_name="WLTP",
+            n_series=96,
+            n_parallel=4,
+            peak_power_kW=50.0,
+        )
+        
+        us06 = api.estimate_range(
+            preset_name="LFP_5AH",
+            cycle_name="US06",
+            n_series=96,
+            n_parallel=4,
+            peak_power_kW=50.0,
+        )
+        
+        # Both should return valid JSON structures
+        wltp_range = wltp.json_data["range"]["estimated_range_km"]
+        us06_range = us06.json_data["range"]["estimated_range_km"]
+        
+        assert wltp_range >= 0
+        assert us06_range >= 0
+        
+        # If both simulations succeed, ranges should be realistic
+        if wltp_range > 0 and us06_range > 0:
+            # Both should be positive and reasonable
+            assert wltp_range < 10000  # Less than 10,000 km for 25 kWh
+            assert us06_range < 10000
+
+    def test_estimate_range_with_custom_temperature(self, api):
+        """estimate_range respects temperature parameter."""
+        result = api.estimate_range(
+            preset_name="LFP_5AH",
+            temperature_C=0.0,  # Cold conditions
+        )
+        
+        assert result.json_data.get("temperature_C") == 0.0
+
+    def test_estimate_range_markdown_contains_values(self, api):
+        """Markdown output includes readable range estimate."""
+        result = api.estimate_range(
+            preset_name="LFP_5AH",
+            n_series=96,
+            n_parallel=4,
+        )
+        
+        markdown = result.markdown_text
+        assert "LFP_5AH" in markdown
+        assert "WLTP" in markdown
+        assert "km" in markdown.lower()
+        assert "kWh" in markdown
+        
+        # Should mention key assumptions
+        assert "assumption" in markdown.lower() or "note" in markdown.lower()

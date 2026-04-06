@@ -3,6 +3,20 @@ from dataclasses import dataclass
 from typing import Optional
 
 
+@dataclass(frozen=True)
+class UsageProfile:
+    """Representative usage patterns for battery lifetime prediction.
+    
+    Used by predict_lifetime() to convert from cycles to calendar years,
+    and to configure storage/rest conditions for calendar aging modeling.
+    """
+    daily_km: float = 40.0                # Average daily driving distance (km)
+    daily_charge_cycles: float = 1.0      # How many charge cycles per day
+    storage_temperature_C: float = 25.0   # Temperature when parked (°C)
+    storage_soc: float = 0.5              # Typical SOC when parked (0-1)
+    fast_charge_ratio: float = 0.1        # Fraction of charges that are fast (DC)
+
+
 _VALID_SEI_MODELS = frozenset({
     "ec reaction limited",
     "solvent-diffusion limited",
@@ -45,12 +59,18 @@ class DegradationConfig:
 
     Supports both the legacy boolean API and explicit sub-model selectors.
     When a sub-model selector is set, it takes priority over the boolean flag.
+    Calendar aging is modeled when both sei_growth and calendar_aging are True.
     """
 
     # --- Legacy boolean API (backward compatible) ---
     sei_growth: bool = False
     lithium_plating: bool = False
     active_material_loss: bool = False
+
+    # --- Calendar aging ---
+    calendar_aging: bool = False                # Enable SEI growth during rest
+    storage_temperature_C: float = 25.0         # Storage temperature (°C)
+    storage_soc: float = 0.5                    # Storage SOC (0-1)
 
     # --- Sub-model selectors (take priority when set) ---
     sei_model: Optional[str] = None
@@ -67,6 +87,7 @@ class DegradationConfig:
             self.sei_growth
             or self.lithium_plating
             or self.active_material_loss
+            or self.calendar_aging
             or self.sei_model is not None
             or self.lithium_plating_model is not None
             or self.am_loss_model is not None
