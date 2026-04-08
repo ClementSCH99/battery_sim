@@ -32,6 +32,7 @@ dispatch, not by importing raw Python functions.
 import asyncio
 import json
 from functools import lru_cache
+from typing import Any, cast
 
 import pytest
 
@@ -69,7 +70,7 @@ def _call_tool(name: str, arguments: dict | None = None) -> dict:
 
     result = _run(_invoke())
     # call_tool returns (list[ContentBlock], ...) — first element is text list
-    content_blocks = result[0] if isinstance(result, tuple) else result
+    content_blocks = cast(list[Any], result[0] if isinstance(result, tuple) else result)
     text = content_blocks[0].text
     return json.loads(text)
 
@@ -241,6 +242,97 @@ class TestGetSessionSummarySchema:
         assert len(props) == 0
 
 
+class TestMCPBoundaryValidation:
+    """Raw wrapper functions return structured validation errors."""
+
+    @staticmethod
+    def _assert_validation_error(raw_result: str, message_fragment: str) -> None:
+        payload = json.loads(raw_result)
+        assert payload["error"] is True
+        assert payload["error_type"] == "ValidationError"
+        assert message_fragment in payload["message"]
+
+    def test_optimize_charging_rejects_inverted_current_range(self):
+        from mcp_server import optimize_charging
+
+        raw_result = optimize_charging(
+            preset_name="LFP_5AH",
+            charge_current_min_A=5.0,
+            charge_current_max_A=1.0,
+        )
+        self._assert_validation_error(raw_result, "charge_current_min_A")
+
+    def test_compare_presets_rejects_empty_list(self):
+        from mcp_server import compare_presets
+
+        raw_result = compare_presets([])
+        self._assert_validation_error(raw_result, "preset_names")
+
+    def test_pack_sizing_rejects_invalid_voltage_range(self):
+        from mcp_server import pack_sizing
+
+        raw_result = pack_sizing(
+            preset_name="LFP_5AH",
+            target_energy_kWh=60.0,
+            voltage_range_min_V=400.0,
+            voltage_range_max_V=300.0,
+        )
+        self._assert_validation_error(raw_result, "voltage_range_min_V")
+
+    def test_compare_charging_strategies_rejects_zero_cycles(self):
+        from mcp_server import compare_charging_strategies
+
+        raw_result = compare_charging_strategies(
+            preset_name="LFP_5AH",
+            n_cycles=0,
+        )
+        self._assert_validation_error(raw_result, "n_cycles")
+
+    def test_invalid_preset_name_returns_available_presets(self):
+        from mcp_server import run_simulation
+
+        raw_result = run_simulation(
+            preset_name="NOT_A_PRESET",
+            duration_s=30.0,
+        )
+        payload = json.loads(raw_result)
+        assert payload["error"] is True
+        assert payload["error_type"] == "ValidationError"
+        assert "Unknown preset_name" in payload["message"]
+        assert "Available presets:" in payload["message"]
+
+    def test_out_of_range_temperature_returns_validation_error(self):
+        from mcp_server import check_feasibility
+
+        raw_result = check_feasibility(
+            preset_name="LFP_5AH",
+            temperature_C=150.0,
+        )
+        self._assert_validation_error(raw_result, "temperature_C")
+
+    def test_invalid_grid_size_returns_validation_error(self):
+        from mcp_server import operating_window
+
+        raw_result = operating_window(
+            preset_name="LFP_5AH",
+            grid_size="ultra",
+        )
+        self._assert_validation_error(raw_result, "grid_size")
+
+    def test_invalid_cycle_name_returns_validation_error(self):
+        from mcp_server import estimate_range
+
+        raw_result = estimate_range(
+            preset_name="LFP_5AH",
+            cycle_name="BAD_CYCLE",
+        )
+        payload = json.loads(raw_result)
+        assert payload["error"] is True
+        assert payload["error_type"] == "ValidationError"
+        assert "cycle_name" in payload["message"]
+        assert "WLTP" in payload["message"]
+
+
 # ===========================================================================
 # 4. Round-trip invocation tests (slow, require PyBaMM)
 # ===========================================================================
@@ -322,7 +414,7 @@ class TestGetSessionSummaryRoundTrip:
             return await mcp.call_tool("get_session_summary", {})
 
         result = _run(_invoke())
-        content_blocks = result[0] if isinstance(result, tuple) else result
+        content_blocks = cast(list[Any], result[0] if isinstance(result, tuple) else result)
         text = content_blocks[0].text
         # Session summary is plain text / markdown, not necessarily JSON
         assert isinstance(text, str)

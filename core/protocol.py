@@ -1,4 +1,5 @@
 # battery_sim/core/protocol.py
+import math
 from dataclasses import dataclass
 from battery_sim.core.exceptions import ProtocolValidationError
 from typing import List, Optional, TYPE_CHECKING
@@ -123,20 +124,41 @@ class Protocol:
             raise ProtocolValidationError(
                 "Protocol must contain at least one step - Protocol not valide"
             )
+
+        if self.n_cycles is not None and self.n_cycles < 1:
+            raise ProtocolValidationError("Protocol n_cycles must be >= 1 - Protocol not valide")
+
+        def _validate_duration(duration_s: Optional[float], step_name: str, index: int) -> None:
+            if duration_s is None:
+                return
+            if not math.isfinite(duration_s) or duration_s <= 0:
+                raise ProtocolValidationError(
+                    f"{step_name} step at index {index}: duration must be > 0 s - Protocol not valide"
+                )
+
+        def _validate_finite(value: float, field_name: str, step_name: str, index: int) -> None:
+            if not math.isfinite(value):
+                raise ProtocolValidationError(
+                    f"{step_name} step at index {index}: {field_name} must be finite - Protocol not valide"
+                )
         
         for i, step in enumerate(self.steps):
             if not isinstance(step, Step):
                 raise ProtocolValidationError(
                     f"Invalid step at index {i}: {type(step)} - Protocol not valide"
                 )
+
+            _validate_duration(step.duration_s(), type(step).__name__, i)
         
             if isinstance(step, ConstantCurrent):
+                _validate_finite(step.current_A, "current", "ConstantCurrent", i)
                 if step.current_A == 0:
                     raise ProtocolValidationError(
                         f"ConstantCurrent step at index {i}: current must be different than 0A - Protocol not valide"
                     )
                 
             if isinstance(step, PowerStep):
+                _validate_finite(step.power_W, "power", "PowerStep", i)
                 if step.power_W == 0:
                     raise ProtocolValidationError(
                         f"PowerStep at index {i}: power must be different than 0 W - Protocol not valide"
@@ -147,24 +169,45 @@ class Protocol:
                     raise ProtocolValidationError(
                         f"DriveProfile at index {i}: must have at least one segment - Protocol not valide"
                     )
+                for segment_index, (power_W, duration_s) in enumerate(step.segments):
+                    _validate_finite(power_W, "power", f"DriveProfile segment {segment_index}", i)
+                    if not math.isfinite(duration_s) or duration_s <= 0:
+                        raise ProtocolValidationError(
+                            f"DriveProfile at index {i}: segment {segment_index} duration must be > 0 s - Protocol not valide"
+                        )
             
             if isinstance(step, CC_CV):
+                _validate_finite(step.charge_current_A, "charge current", "CC_CV", i)
+                _validate_finite(step.cutoff_voltage_V, "cutoff voltage", "CC_CV", i)
+                _validate_finite(step.taper_current_A, "taper current", "CC_CV", i)
                 if not step.charge_current_A > 0:
                     raise ProtocolValidationError(
                         f"CC_CV step at index {i}: charge current must be greater than 0A - Protocol not valide"
                     )
-                if not step.cutoff_voltage_V:
+                if not step.cutoff_voltage_V > 0:
                     raise ProtocolValidationError(
-                        f"CC_CV step at index {i}: cutoff voltage must exist - Protocol not valide"
+                        f"CC_CV step at index {i}: cutoff voltage must be greater than 0V - Protocol not valide"
                     )
                 if not step.taper_current_A > 0:
                     raise ProtocolValidationError(
                         f"CC_CV step at index {i}: taper current must be greater than 0A - Protocol not valide"
                     )
+                if step.taper_current_A > step.charge_current_A:
+                    raise ProtocolValidationError(
+                        f"CC_CV step at index {i}: taper current must be <= charge current - Protocol not valide"
+                    )
 
-        # TO-DO: check for nul current, negative tension, CC_CV order ...
-        else:
-            pass
+        if self.cycle_definition is not None:
+            self.cycle_definition.charge.validate()
+            self.cycle_definition.discharge.validate()
+            for label, rest_s in (
+                ("rest_after_charge_s", self.cycle_definition.rest_after_charge_s),
+                ("rest_after_discharge_s", self.cycle_definition.rest_after_discharge_s),
+            ):
+                if not math.isfinite(rest_s) or rest_s < 0:
+                    raise ProtocolValidationError(
+                        f"CycleDefinition {label} must be >= 0 s - Protocol not valide"
+                    )
 
 
     @staticmethod

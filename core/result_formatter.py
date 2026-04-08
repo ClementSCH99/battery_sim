@@ -195,6 +195,12 @@ class ComparisonFormatter:
                         'worst_value': worst_val,
                         'range': metric_data.get('range'),
                     }
+            else:
+                json_data['metrics'][metric_name] = {
+                    'type': metric_data.get('type', 'categorical'),
+                    'values': metric_data.get('values', {}),
+                    'categories': metric_data.get('categories', {}),
+                }
         
         # Build Markdown (readable tables)
         md_lines = [
@@ -232,6 +238,24 @@ class ComparisonFormatter:
                     else:
                         row += " - |"
                 md_lines.append(row)
+
+        # Add categorical/error-focused context when available
+        categorical_metrics = [
+            (metric_name, metric_data)
+            for metric_name, metric_data in metrics_dict.items()
+            if metric_data.get('type') != 'numeric'
+        ]
+        if categorical_metrics:
+            md_lines.append("")
+            md_lines.append("### Status and Error Context")
+            md_lines.append("")
+            for metric_name, metric_data in categorical_metrics:
+                values = metric_data.get('values', {})
+                formatted_values = [
+                    f"{scenario}: {ComparisonFormatter._format_categorical_value(values.get(scenario))}"
+                    for scenario in scenarios
+                ]
+                md_lines.append(f"- **{metric_name}**: {'; '.join(formatted_values)}")
         
         md_lines.append("")
         
@@ -311,6 +335,12 @@ class ComparisonFormatter:
                         'worst_value': worst_val,
                         'range': metric_data.get('range'),
                     }
+            else:
+                json_data['metrics'][metric_name] = {
+                    'type': metric_data.get('type', 'categorical'),
+                    'values': metric_data.get('values', {}),
+                    'categories': metric_data.get('categories', {}),
+                }
         
         # Compute "best_for" winners across all metrics
         best_for = ComparisonFormatter._compute_best_for(metrics_dict, ev_metrics)
@@ -416,6 +446,23 @@ class ComparisonFormatter:
             "### Key Findings",
             "",
         ])
+
+        categorical_metrics = [
+            (metric_name, metric_data)
+            for metric_name, metric_data in metrics_dict.items()
+            if metric_data.get('type') != 'numeric'
+        ]
+        if categorical_metrics:
+            md_lines.append("### Status and Error Context")
+            md_lines.append("")
+            for metric_name, metric_data in categorical_metrics:
+                values = metric_data.get('values', {})
+                formatted_values = [
+                    f"{scenario}: {ComparisonFormatter._format_categorical_value(values.get(scenario))}"
+                    for scenario in scenarios
+                ]
+                md_lines.append(f"- **{metric_name}**: {'; '.join(formatted_values)}")
+            md_lines.append("")
         
         insights = ComparisonFormatter._extract_insights(json_data)
         for insight in insights[:8]:
@@ -530,6 +577,17 @@ class ComparisonFormatter:
                         )
         
         return insights
+
+    @staticmethod
+    def _format_categorical_value(value: Any) -> str:
+        """Format categorical values for markdown display."""
+        if value is None:
+            return "-"
+        if isinstance(value, list):
+            if not value:
+                return "[]"
+            return ", ".join(str(v) for v in value)
+        return str(value)
     
     @staticmethod
     def _generate_hints(json_data: Dict[str, Any]) -> List[str]:

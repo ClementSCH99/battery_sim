@@ -18,7 +18,7 @@ LEARNING NOTES:
 import pytest
 
 from battery_sim.core.cell import Cell
-from battery_sim.core.protocol import Protocol, ConstantCurrent, Rest, CC_CV, PowerStep, DriveProfile, Step
+from battery_sim.core.protocol import Protocol, ConstantCurrent, Rest, CC_CV, PowerStep, DriveProfile, Step, CycleDefinition
 from battery_sim.core.environment import Environment
 from battery_sim.core.solver import SolverConfig, Solver
 from battery_sim.core.model import Model
@@ -177,6 +177,11 @@ class TestProtocolValidation:
         proto = Protocol.cc(current_A=2.0, duration_s=120)
         proto.validate()
 
+    def test_zero_duration_rest_rejected(self):
+        proto = Protocol.rest(duration_s=0)
+        with pytest.raises(ProtocolValidationError):
+            proto.validate()
+
     def test_negative_current_cc_allowed(self):
         """Negative current = discharge. That's a valid protocol."""
         proto = Protocol.cc(current_A=-5.0, duration_s=60)
@@ -190,6 +195,16 @@ class TestProtocolValidation:
     def test_zero_power_rejected(self):
         """Zero power is physically meaningless."""
         proto = Protocol.power(power_W=0, duration_s=3600)
+        with pytest.raises(ProtocolValidationError):
+            proto.validate()
+
+    def test_negative_cutoff_voltage_cccv_rejected(self):
+        proto = Protocol.cccv(charge_current_A=1.0, cutoff_voltage_V=-4.2, taper_current_A=0.1)
+        with pytest.raises(ProtocolValidationError):
+            proto.validate()
+
+    def test_taper_current_above_charge_current_rejected(self):
+        proto = Protocol.cccv(charge_current_A=1.0, cutoff_voltage_V=4.2, taper_current_A=1.1)
         with pytest.raises(ProtocolValidationError):
             proto.validate()
 
@@ -234,6 +249,25 @@ class TestProtocolCombination:
         assert isinstance(p.steps[0], PowerStep)
         assert isinstance(p.steps[1], Rest)
         assert p.total_duration_s() == 4200.0
+
+    def test_cycle_definition_negative_rest_rejected(self):
+        charge = Protocol.cccv(charge_current_A=1.0, cutoff_voltage_V=4.2, taper_current_A=0.1)
+        discharge = Protocol.cc(current_A=-1.0, duration_s=60)
+        protocol = Protocol.cycle(charge=charge, discharge=discharge, n_cycles=1, rest_s=0)
+        assert protocol.cycle_definition is not None
+        invalid_protocol = Protocol(
+            steps=protocol.steps,
+            n_cycles=protocol.n_cycles,
+            cycle_definition=CycleDefinition(
+                charge=protocol.cycle_definition.charge,
+                discharge=protocol.cycle_definition.discharge,
+                rest_after_charge_s=-1.0,
+                rest_after_discharge_s=protocol.cycle_definition.rest_after_discharge_s,
+            ),
+        )
+
+        with pytest.raises(ProtocolValidationError):
+            invalid_protocol.validate()
 
 
 # ============================================================================

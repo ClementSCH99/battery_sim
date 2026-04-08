@@ -3,9 +3,13 @@ from dataclasses import replace
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from battery_sim.core.cell import Cell
+from battery_sim.core.convergence_diagnostics import ConvergenceDiagnostics
+from battery_sim.core.result import Result
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.simulation_run import SimulationRun
+from battery_sim.core.simulation_error import ErrorType, SimulationError
 from battery_sim.core.simulation_backend import SimulationBackend
+from battery_sim.core.simulation_metadata import SimulationMetadata
 from battery_sim.types.signal import Signal
 
 
@@ -38,22 +42,54 @@ class BatchExecutionService:
         results: List[Tuple[str, Optional[SimulationRun]]] = []
 
         for preset_name in preset_names:
-            cell = Cell.preset(preset_name)
-            simulation = Simulation(
-                cell=cell,
-                model=config.model,
-                protocol=config.protocol,
-                environment=config.environment,
-                solver_config=config.solver_config,
-            )
-
             try:
+                cell = Cell.preset(preset_name)
+                simulation = Simulation(
+                    cell=cell,
+                    model=config.model,
+                    protocol=config.protocol,
+                    environment=config.environment,
+                    solver_config=config.solver_config,
+                )
                 run = self.execution_service.execute(simulation)
                 results.append((preset_name, run))
-            except Exception:
-                results.append((preset_name, None))
+            except Exception as exc:
+                failed_run = self._build_failed_run(exc, config.solver_config)
+                results.append((preset_name, failed_run))
 
         return results
+
+    @staticmethod
+    def _build_failed_run(exc: Exception, solver_config: Any) -> SimulationRun:
+        error_message = f"{type(exc).__name__}: {exc}"
+        metadata = SimulationMetadata.create(
+            solver_config=solver_config,
+            success=False,
+            convergence_reason=error_message,
+            duration_s=0.0,
+            duration_source="service_exception",
+            protocol_steps=0,
+            solver_iterations=0,
+        )
+        diagnostics = ConvergenceDiagnostics.create(
+            total_time_steps=0,
+            problem_description="execution failed before result generation",
+            telemetry_status="unavailable",
+        )
+        errors = [
+            SimulationError(
+                error_type=ErrorType.UNRECOGNIZED,
+                severity="critical",
+                message=error_message,
+                location="BatchExecutionService.run_presets",
+            )
+        ]
+        return SimulationRun(
+            result=Result({}),
+            metadata=metadata,
+            errors=errors,
+            diagnostics=diagnostics,
+        )
 
     def run_parameter_variations(
         self,
@@ -85,8 +121,14 @@ class ParameterSweepService:
     def __init__(
         self,
         execution_service: Optional[SimulationExecutionService] = None,
+        backend: Optional[SimulationBackend] = None,
     ) -> None:
-        self.execution_service = execution_service or SimulationExecutionService()
+        if execution_service is not None:
+            self.execution_service = execution_service
+        elif backend is not None:
+            self.execution_service = SimulationExecutionService(backend)
+        else:
+            raise ValueError("ParameterSweepService requires either execution_service or backend")
 
     def sweep_parameter(
         self,
@@ -215,7 +257,10 @@ class ComparisonService:
         simulation_run: Optional[SimulationRun],
     ) -> Dict[str, Any]:
         if not simulation_run:
-            return {}
+            return {
+                "status": "failed",
+                "errors": ["Simulation did not produce a run"],
+            }
 
         result = simulation_run.result
         metrics: Dict[str, Any] = {}
@@ -255,14 +300,25 @@ class ComparisonService:
             )
             metrics["avg_iterations"] = simulation_run.diagnostics.avg_newton_iterations
 
+        is_successful = simulation_run.is_successful()
+        metrics["status"] = "succeeded" if is_successful else "failed"
+
+        error_messages: List[str] = []
         if simulation_run.errors:
+            error_messages = [error.summary() for error in simulation_run.errors]
             critical = len([e for e in simulation_run.errors if e.severity == "critical"])
             warnings = len([e for e in simulation_run.errors if e.severity == "warning"])
             metrics["critical_errors"] = critical
             metrics["warnings"] = warnings
-        else:
-            metrics["critical_errors"] = 0
-            metrics["warnings"] = 0
+        elif not is_successful:
+            reason = simulation_run.metadata.convergence_reason if simulation_run.metadata else "Unknown failure"
+            error_messages = [reason]
+
+        if error_messages:
+            metrics["errors"] = error_messages
+        elif is_successful:
+            metrics["critical_errors"] = metrics.get("critical_errors", 0)
+            metrics["warnings"] = metrics.get("warnings", 0)
 
         return metrics
 
@@ -273,8 +329,15 @@ class ComparisonService:
         metric_filters: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         all_metrics: Dict[str, Dict[str, Any]] = {}
+        n_succeeded = 0
+        n_failed = 0
         for label, run in results:
-            all_metrics[label] = cls.extract_metrics(run)
+            metrics = cls.extract_metrics(run)
+            all_metrics[label] = metrics
+            if metrics.get("status") == "succeeded":
+                n_succeeded += 1
+            else:
+                n_failed += 1
 
         common_metrics = set()
         for metrics in all_metrics.values():
@@ -286,6 +349,8 @@ class ComparisonService:
         comparison: Dict[str, Any] = {
             "scenarios": list(all_metrics.keys()),
             "metrics": {},
+            "n_succeeded": n_succeeded,
+            "n_failed": n_failed,
         }
 
         for metric_name in sorted(common_metrics):
@@ -295,7 +360,7 @@ class ComparisonService:
             for label, metrics in all_metrics.items():
                 value = metrics.get(metric_name)
                 values[label] = value
-                if isinstance(value, (int, float)) and value is not None:
+                if isinstance(value, (int, float)) and not isinstance(value, bool) and value is not None:
                     numbers.append((label, float(value)))
 
             metric_data: Dict[str, Any] = {

@@ -9,7 +9,6 @@ Tests cover:
 """
 
 import pytest
-from dataclasses import dataclass
 
 from battery_sim.core.cell import Cell
 from battery_sim.core.charging_strategies import (
@@ -19,8 +18,18 @@ from battery_sim.core.charging_strategies import (
     ChargingStrategyComparison,
 )
 from battery_sim.core.agent_api import AgentAPI
+from battery_sim.core.protocol import Protocol
 from battery_sim.core.result_formatter import DualFormatResult
+from battery_sim.core.simulation_backend import SimulationBackend
 from battery_sim import mcp_server
+
+
+class _FailingBackend(SimulationBackend):
+    def run(self, simulation, **solver_options):
+        raise RuntimeError("backend exploded")
+
+    def supports_model(self, model):
+        return True
 
 
 class TestChargingStrategyBuilder:
@@ -107,6 +116,11 @@ class TestChargingStrategyBuilder:
         # Both should be valid
         assert len(lfp_protocol.steps) > 0
         assert len(nmc_protocol.steps) > 0
+
+    def test_builder_requires_nominal_capacity(self):
+        cell = Cell(chemistry="LFP", nominal_capacity_Ah=None)
+        with pytest.raises(ValueError, match="nominal_capacity_Ah"):
+            ChargingStrategyBuilder.standard_1C(cell)
 
 
 class TestChargingStrategyComparison:
@@ -204,6 +218,44 @@ class TestChargingStrategyComparison:
         ranked = comparison.rank_by_longevity()
         assert ranked[0].strategy_name == "gentle_0.5C"
         assert ranked[-1].strategy_name == "fast_2C"
+
+
+class TestChargingStrategyEvaluator:
+    """Regression tests for evaluator error handling."""
+
+    def test_backend_failure_returns_metrics_with_note(self):
+        evaluator = ChargingStrategyEvaluator(backend=_FailingBackend())
+        cell = Cell.preset("LFP_5AH")
+        protocol = ChargingStrategyBuilder.standard_1C(cell)
+
+        metrics = evaluator.evaluate_strategy(
+            cell=cell,
+            charge_protocol=protocol,
+            strategy_name="standard_1C",
+            n_cycles=1,
+        )
+
+        assert metrics.strategy_name == "standard_1C"
+        assert metrics.charge_time_min == 0.0
+        assert metrics.energy_efficiency == 0.0
+        assert metrics.status == "failed"
+        assert "RuntimeError" in metrics.error
+        assert "backend exploded" in metrics.error
+        assert "RuntimeError" in metrics.notes
+        assert "backend exploded" in metrics.notes
+
+    def test_default_discharge_current_requires_nominal_capacity(self):
+        evaluator = ChargingStrategyEvaluator(backend=_FailingBackend())
+        cell = Cell(chemistry="LFP", nominal_capacity_Ah=None)
+        protocol = Protocol.cccv(charge_current_A=1.0, cutoff_voltage_V=3.65, taper_current_A=0.2)
+
+        with pytest.raises(ValueError, match="nominal_capacity_Ah"):
+            evaluator.evaluate_strategy(
+                cell=cell,
+                charge_protocol=protocol,
+                strategy_name="custom",
+                n_cycles=1,
+            )
 
 
 class TestAgentAPIChargingStrategies:

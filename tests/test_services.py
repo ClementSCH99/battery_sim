@@ -30,13 +30,18 @@ from battery_sim.core.application_services import (
     SimulationExecutionService,
 )
 from battery_sim.core.cell import Cell
+from battery_sim.core.convergence_diagnostics import ConvergenceDiagnostics
 from battery_sim.core.environment import Environment
 from battery_sim.core.investigation_tools import BatchSimulationConfig
 from battery_sim.core.model import Model
 from battery_sim.core.parameter_sweep import ParameterSweep, SweepResult
 from battery_sim.core.protocol import Protocol, ConstantCurrent
+from battery_sim.core.result import Result
 from battery_sim.core.simulation import Simulation
+from battery_sim.core.simulation_error import ErrorType, SimulationError
+from battery_sim.core.simulation_metadata import SimulationMetadata
 from battery_sim.core.simulation_run import SimulationRun
+from battery_sim.core.simulation_backend import SimulationBackend
 from battery_sim.core.solver import SolverConfig
 
 
@@ -317,3 +322,104 @@ class TestParameterSweep:
             assert r.parameter_name == "temperature_C"
             assert isinstance(r.simulation_result, SimulationRun)
             assert r.override.environment_parameters.get("temperature_C") == r.parameter_value
+
+
+class TestParameterSweepServiceConstruction:
+    """Constructor contract should be explicit about required dependencies."""
+
+    def test_requires_backend_or_execution_service(self):
+        with pytest.raises(ValueError, match="requires either execution_service or backend"):
+            ParameterSweepService()
+
+    def test_accepts_backend_directly(self, backend):
+        service = ParameterSweepService(backend=backend)
+        assert isinstance(service.execution_service, SimulationExecutionService)
+
+
+# ===========================================================================
+# Error propagation (fast, no PyBaMM)
+# ===========================================================================
+
+def _make_run(success: bool, errors: list[SimulationError]) -> SimulationRun:
+    metadata = SimulationMetadata.create(
+        solver_config=SolverConfig(),
+        success=success,
+        convergence_reason="Converged" if success else "Solver failed",
+        duration_s=0.01,
+        protocol_steps=1,
+        solver_iterations=1,
+    )
+    diagnostics = ConvergenceDiagnostics.create(total_time_steps=1)
+    return SimulationRun(
+        result=Result({}),
+        metadata=metadata,
+        errors=errors,
+        diagnostics=diagnostics,
+    )
+
+
+class _SelectiveFailureBackend(SimulationBackend):
+    """Fail NMC requests while returning a successful stub run for others."""
+
+    def run(self, simulation: Simulation, **solver_options) -> SimulationRun:
+        if simulation.cell.chemistry == "NMC":
+            raise RuntimeError("solver divergence in mocked execution")
+        return _make_run(success=True, errors=[])
+
+    def supports_model(self, model) -> bool:
+        return True
+
+
+class TestServiceErrorPropagation:
+    def test_extract_metrics_includes_errors_for_failed_run(self):
+        failed_error = SimulationError(
+            error_type=ErrorType.CONVERGENCE_FAILURE,
+            severity="critical",
+            message="Newton solver did not converge",
+            location="t=120s",
+        )
+        failed_run = _make_run(success=False, errors=[failed_error])
+
+        metrics = ComparisonService.extract_metrics(failed_run)
+
+        assert metrics["status"] == "failed"
+        assert "errors" in metrics
+        assert any("Newton solver did not converge" in msg for msg in metrics["errors"])
+
+    def test_batch_execution_preserves_failure_details(self, short_config):
+        service = BatchExecutionService(backend=_SelectiveFailureBackend())
+
+        results = service.run_presets(["LFP_5AH", "NMC_5AH"], short_config)
+        by_name = {name: run for name, run in results}
+
+        assert by_name["LFP_5AH"] is not None
+        assert by_name["LFP_5AH"].is_successful()
+
+        failed_run = by_name["NMC_5AH"]
+        assert failed_run is not None
+        assert not failed_run.is_successful()
+        assert failed_run.errors
+        assert "RuntimeError" in failed_run.errors[0].message
+
+    def test_compare_batch_results_reports_success_failure_counts(self):
+        success_run = _make_run(success=True, errors=[])
+        failed_run = _make_run(
+            success=False,
+            errors=[
+                SimulationError(
+                    error_type=ErrorType.DIVERGENCE,
+                    severity="critical",
+                    message="Diverged during discharge",
+                )
+            ],
+        )
+
+        comparison = ComparisonService.compare_batch_results(
+            [("ok", success_run), ("bad", failed_run)]
+        )
+
+        assert comparison["n_succeeded"] == 1
+        assert comparison["n_failed"] == 1
+        status_values = comparison["metrics"]["status"]["values"]
+        assert status_values["ok"] == "succeeded"
+        assert status_values["bad"] == "failed"

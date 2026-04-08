@@ -2330,6 +2330,7 @@ class AgentAPI:
                     'capacity_fade_per_cycle': round(s.capacity_fade_per_cycle, 2),
                     'final_soh': round(s.final_soh, 1),
                     'final_temperature_C': round(s.final_temperature_C, 1),
+                    'notes': s.notes,
                 }
                 for s in comparison.strategies
             ],
@@ -2411,6 +2412,20 @@ class AgentAPI:
             md_lines.append(
                 f"- Capacity fade: {ranked[0].capacity_fade_per_cycle:.2f}% per cycle"
             )
+
+        strategy_notes = [
+            (strategy.strategy_name, strategy.notes)
+            for strategy in comparison.strategies
+            if strategy.notes
+        ]
+        if strategy_notes:
+            md_lines.extend([
+                "",
+                "## Notes",
+                "",
+            ])
+            for strategy_name, note in strategy_notes:
+                md_lines.append(f"- **{strategy_name}**: {note}")
         
         md_lines.extend([
             "",

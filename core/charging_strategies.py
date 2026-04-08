@@ -45,6 +45,8 @@ class ChargingStrategyMetrics:
     final_soh: float  # State of health as % of nominal
     final_temperature_C: float  # Peak temperature during cycling
     cycle_count: int  # Number of cycles simulated
+    status: str = "ok"
+    error: str = ""
     notes: str = ""
 
 
@@ -99,6 +101,16 @@ class ChargingStrategyComparison:
 
 class ChargingStrategyBuilder:
     """Factory for creating predefined charging strategies."""
+
+    @staticmethod
+    def _require_nominal_capacity(cell: Cell) -> float:
+        """Charging strategy comparisons require an explicit nominal capacity."""
+        capacity = cell.nominal_capacity_Ah
+        if capacity is None or capacity <= 0:
+            raise ValueError(
+                "Charging strategy evaluation requires cell.nominal_capacity_Ah > 0"
+            )
+        return capacity
     
     @staticmethod
     def get_max_voltage(chemistry: str) -> float:
@@ -115,7 +127,7 @@ class ChargingStrategyBuilder:
     def standard_1C(cell: Cell) -> Protocol:
         """Standard CC-CV charging at 1C (rated capacity per hour)."""
         max_voltage = ChargingStrategyBuilder.get_max_voltage(cell.chemistry)
-        charge_current = 1.0 * (cell.nominal_capacity_Ah or 5.0)
+        charge_current = ChargingStrategyBuilder._require_nominal_capacity(cell)
         taper_current = charge_current * 0.2  # 20% of CC current
         return Protocol.cccv(charge_current, max_voltage, taper_current)
     
@@ -123,7 +135,7 @@ class ChargingStrategyBuilder:
     def fast_2C(cell: Cell) -> Protocol:
         """Fast CC-CV charging at 2C."""
         max_voltage = ChargingStrategyBuilder.get_max_voltage(cell.chemistry)
-        charge_current = 2.0 * (cell.nominal_capacity_Ah or 5.0)
+        charge_current = 2.0 * ChargingStrategyBuilder._require_nominal_capacity(cell)
         taper_current = charge_current * 0.2
         return Protocol.cccv(charge_current, max_voltage, taper_current)
     
@@ -131,7 +143,7 @@ class ChargingStrategyBuilder:
     def gentle_0_5C(cell: Cell) -> Protocol:
         """Gentle CC-CV charging at 0.5C."""
         max_voltage = ChargingStrategyBuilder.get_max_voltage(cell.chemistry)
-        charge_current = 0.5 * (cell.nominal_capacity_Ah or 5.0)
+        charge_current = 0.5 * ChargingStrategyBuilder._require_nominal_capacity(cell)
         taper_current = charge_current * 0.2
         return Protocol.cccv(charge_current, max_voltage, taper_current)
     
@@ -145,17 +157,13 @@ class ChargingStrategyBuilder:
         
         Profile: 2C for 1min → 1.5C for 2min → 1C for 3min → 0.5C until full
         """
-        capacity = cell.nominal_capacity_Ah or 5.0
-        max_voltage = ChargingStrategyBuilder.get_max_voltage(cell.chemistry)
+        capacity = ChargingStrategyBuilder._require_nominal_capacity(cell)
         
         # Time-based approximation of multi-step charging
         step_1_current = 2.0 * capacity
         step_2_current = 1.5 * capacity
         step_3_current = 1.0 * capacity
         step_4_current = 0.5 * capacity
-        
-        # Power values (assuming ~3.5V average during charge)
-        avg_voltage = 3.5  # Rough average during charge
         
         steps = [
             ConstantCurrent(current_A=step_1_current, _duration_s=60),    # 1 min at 2C
@@ -174,7 +182,7 @@ class ChargingStrategyBuilder:
         Profile: 0.5C current, 5 min pulse + 30s rest, repeat until full
         Uses approximation: 3 pulses then gentle to full
         """
-        capacity = cell.nominal_capacity_Ah or 5.0
+        capacity = ChargingStrategyBuilder._require_nominal_capacity(cell)
         charge_current = 0.5 * capacity
         
         steps = []
@@ -243,7 +251,7 @@ class ChargingStrategyEvaluator:
         cell: Cell,
         charge_protocol: Protocol,
         strategy_name: str,
-        discharge_current_A: float = None,
+        discharge_current_A: Optional[float] = None,
         n_cycles: int = 10,
         temperature_C: float = 25.0,
     ) -> ChargingStrategyMetrics:
@@ -261,8 +269,9 @@ class ChargingStrategyEvaluator:
         Returns:
             ChargingStrategyMetrics with extracted performance data
         """
+        nominal_capacity_Ah = ChargingStrategyBuilder._require_nominal_capacity(cell)
         if discharge_current_A is None:
-            discharge_current_A = cell.nominal_capacity_Ah or 5.0  # 1C default
+            discharge_current_A = nominal_capacity_Ah  # 1C default
         
         # Build discharge protocol (simple 1C discharge to cutoff)
         discharge_protocol = Protocol(steps=[
@@ -296,11 +305,21 @@ class ChargingStrategyEvaluator:
         )
         
         # Run simulation
+        run = None
+        status = "ok"
+        failure_error = ""
+        failure_note = ""
         try:
             run = simulation.run(self.backend)
-            completed = run.is_successful()
+            if not run.is_successful():
+                status = "failed"
+                run_errors = [err.summary() for err in run.errors] if run.errors else []
+                failure_error = "; ".join(run_errors) if run_errors else "SimulationRun marked unsuccessful"
+                failure_note = f"Simulation failed: {failure_error}"
         except Exception as e:
-            completed = False
+            status = "failed"
+            failure_error = f"{type(e).__name__}: {e}"
+            failure_note = f"Simulation failed: {failure_error}"
         
         # Extract metrics
         charge_time_min = 0.0
@@ -308,7 +327,7 @@ class ChargingStrategyEvaluator:
         charge_energy_Wh = 0.0
         discharge_energy_Wh = 0.0
         final_temperature_C = environment.temperature_C
-        final_capacity_Ah = cell.nominal_capacity_Ah or 5.0
+        final_capacity_Ah = nominal_capacity_Ah
         final_soh = 100.0
         
         if run and run.result:
@@ -316,27 +335,42 @@ class ChargingStrategyEvaluator:
             
             # Estimate timing from simulation time
             # This is approximate: PyBaMM doesn't directly expose per-step times
-            total_time_s = result.time_vector()[-1] if hasattr(result, 'time_vector') else 0
+            time_vector_fn = getattr(result, "time_vector", None)
+            time_vector = time_vector_fn() if callable(time_vector_fn) else []
+            total_time_s = float(time_vector[-1]) if isinstance(time_vector, (list, tuple, np.ndarray)) and len(time_vector) > 0 else 0.0
             charge_time_min = (total_time_s / 2) / 60 if total_time_s > 0 else 0  # Rough estimate
             discharge_time_min = (total_time_s / 2) / 60 if total_time_s > 0 else 0
             
             # Energy from voltage/current product (approximation)
-            voltage = result.voltage_vector() if hasattr(result, 'voltage_vector') else None
-            charge_energy_Wh = result.charge_energy() if hasattr(result, 'charge_energy') else 0
-            discharge_energy_Wh = result.discharge_energy() if hasattr(result, 'discharge_energy') else 0
+            charge_energy_fn = getattr(result, "charge_energy", None)
+            if callable(charge_energy_fn):
+                charge_energy_value = charge_energy_fn()
+                if isinstance(charge_energy_value, (int, float, np.floating)):
+                    charge_energy_Wh = float(charge_energy_value)
+
+            discharge_energy_fn = getattr(result, "discharge_energy", None)
+            if callable(discharge_energy_fn):
+                discharge_energy_value = discharge_energy_fn()
+                if isinstance(discharge_energy_value, (int, float, np.floating)):
+                    discharge_energy_Wh = float(discharge_energy_value)
             
             # Capacity fade
-            if hasattr(result, 'capacity_fade'):
-                capacity_fade_fraction = result.capacity_fade()
-                final_capacity_Ah = (1.0 - capacity_fade_fraction) * (cell.nominal_capacity_Ah or 5.0)
-                final_soh = (1.0 - capacity_fade_fraction) * 100.0
+            capacity_fade_fn = getattr(result, "capacity_fade", None)
+            if callable(capacity_fade_fn):
+                capacity_fade_value = capacity_fade_fn()
+                if isinstance(capacity_fade_value, (int, float, np.floating)):
+                    capacity_fade_fraction = float(capacity_fade_value)
+                    final_capacity_Ah = (1.0 - capacity_fade_fraction) * nominal_capacity_Ah
+                    final_soh = (1.0 - capacity_fade_fraction) * 100.0
             
             # Temperature
-            if hasattr(result, 'max_temperature'):
-                final_temperature_C = result.max_temperature()
+            max_temperature_fn = getattr(result, "max_temperature", None)
+            max_temperature = max_temperature_fn() if callable(max_temperature_fn) else None
+            if isinstance(max_temperature, (int, float, np.floating)):
+                final_temperature_C = float(max_temperature)
         
         # Calculate metrics
-        capacity_fade_per_cycle = (1.0 - (final_capacity_Ah / (cell.nominal_capacity_Ah or 5.0))) * 100.0 / max(n_cycles, 1)
+        capacity_fade_per_cycle = (1.0 - (final_capacity_Ah / nominal_capacity_Ah)) * 100.0 / max(n_cycles, 1)
         energy_efficiency = discharge_energy_Wh / charge_energy_Wh if charge_energy_Wh > 0 else 0
         total_cycle_time_min = charge_time_min + discharge_time_min
         
@@ -353,6 +387,9 @@ class ChargingStrategyEvaluator:
             final_soh=final_soh,
             final_temperature_C=final_temperature_C,
             cycle_count=n_cycles,
+            status=status,
+            error=failure_error,
+            notes=failure_note,
         )
     
     def compare(
@@ -392,7 +429,7 @@ class ChargingStrategyEvaluator:
         return ChargingStrategyComparison(
             preset_name=cell.chemistry,
             chemistry=cell.chemistry,
-            nominal_capacity_Ah=cell.nominal_capacity_Ah or 5.0,
+            nominal_capacity_Ah=ChargingStrategyBuilder._require_nominal_capacity(cell),
             strategies=results,
             temperature_C=temperature_C,
             n_cycles=n_cycles,

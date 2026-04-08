@@ -266,6 +266,56 @@ class TestComparisonFormatterEv:
         assert 'Power Density' in markdown
         assert 'Energy Density' in markdown
 
+    def test_categorical_metrics_preserved_in_formatted_json(self):
+        """Ensure non-numeric metrics (status/errors) survive formatter output."""
+        scenarios = ['LFP_5AH', 'NMC_5AH']
+        metrics_dict = {
+            'status': {
+                'type': 'categorical',
+                'values': {'LFP_5AH': 'success', 'NMC_5AH': 'failed'},
+                'categories': {'success': ['LFP_5AH'], 'failed': ['NMC_5AH']},
+            },
+            'errors': {
+                'type': 'categorical',
+                'values': {'LFP_5AH': [], 'NMC_5AH': ['solver divergence']},
+                'categories': {},
+            },
+        }
+
+        result = ComparisonFormatter.format_comparison_with_ev(
+            scenarios,
+            metrics_dict,
+            ev_metrics={},
+            ragone_data={},
+        )
+
+        assert 'status' in result.json_data['metrics']
+        assert result.json_data['metrics']['status']['values']['NMC_5AH'] == 'failed'
+        assert 'errors' in result.json_data['metrics']
+        assert result.json_data['metrics']['errors']['values']['NMC_5AH'] == ['solver divergence']
+
+    def test_categorical_metrics_visible_in_markdown(self):
+        """Ensure markdown includes a status/error context section."""
+        scenarios = ['LFP_5AH', 'NMC_5AH']
+        metrics_dict = {
+            'status': {
+                'type': 'categorical',
+                'values': {'LFP_5AH': 'success', 'NMC_5AH': 'failed'},
+                'categories': {},
+            },
+            'errors': {
+                'type': 'categorical',
+                'values': {'LFP_5AH': [], 'NMC_5AH': ['solver divergence']},
+                'categories': {},
+            },
+        }
+
+        result = ComparisonFormatter.format_comparison(scenarios, metrics_dict)
+
+        assert 'Status and Error Context' in result.markdown_text
+        assert 'NMC_5AH: failed' in result.markdown_text
+        assert 'solver divergence' in result.markdown_text
+
 
 class TestIntegration:
     """Integration tests for enhanced presets."""
