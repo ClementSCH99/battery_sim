@@ -1,86 +1,146 @@
-# Feuille de route de récupération
+# Feuille de route de reprise
 
-La stratégie est de construire une trajectoire compréhensible et toujours exécutable. Chaque phase doit réduire la dette avant d'ajouter de nouvelles capacités.
+Cette feuille de route remplace la liste historique de fonctionnalités terminées.
+Elle décrit le niveau de preuve à construire pour faire de `battery_sim` un outil
+interne d'aide à la calibration BMS.
 
-## Phase 0 — Reprendre le contrôle (en cours)
+## Cap produit
 
-- [x] Vérifier l'état Git et la structure réelle.
-- [x] Vérifier les contrats d'architecture déjà en place.
-- [x] Établir une suite de tests rapide distincte des études PyBaMM longues.
-- [x] Formaliser la commande de développement avec une suite rapide séparée des études PyBaMM marquées `slow`.
-- [x] Définir la direction produit et la carte des responsabilités.
-- [x] Dériver la découverte des outils de la façade réelle.
-- [x] Permettre l'injection du backend dans `AgentAPI`.
-- [x] Classer les capacités agent en `core` ou `experimental` selon leur preuve physique actuelle.
-- [x] Constituer un jeu minimal de simulations LFP/NMC avec provenance et invariants physiques documentés.
+`battery_sim` doit aider un ingénieur validation EV à :
 
-## Phase 1 — Stabiliser le noyau scientifique
+1. comprendre l'influence des conditions et paramètres cellule ;
+2. simuler tension, capacité, puissance, température et vieillissement ;
+3. comparer simulation et essai avec des métriques simples ;
+4. générer des données pour tester un modèle équivalent 2RC ;
+5. traduire ensuite les résultats cellule en décisions BMS et études pack.
 
-Objectif : une simulation cellule courte, reproductible et explicable de bout en bout.
+La priorité est l'explicabilité puis la précision. PyBaMM est le seul moteur
+prévu. L'API Python est prioritaire ; MCP reste expérimental jusqu'à
+stabilisation du noyau.
 
-- [x] clarifier la provenance des références LFP Prada2013 et NMC Chen2020 ;
-- [x] séparer température ambiante, température initiale et température cellule calculée ;
-- [x] documenter et tester la convention de signe courant/puissance ;
-- [x] vérifier l'alignement des unités entre extraction backend et catalogue des signaux ;
-- [x] extraire la transformation solution PyBaMM → signaux canoniques hors de `PyBaMMBackend` ;
-- [x] scinder construction PyBaMM, extraction des résultats et observabilité hors de `PyBaMMBackend` ;
-- [x] ajouter des cas de référence LFP et NMC pour une décharge CC ;
-- [x] étendre les références aux protocoles repos et CC-CV.
+## Périmètre initial
 
-Critère de sortie : pour chaque cas de référence, le dépôt explique les hypothèses, reproduit le résultat et détecte une régression physique grossière.
+- une cellule NMC documentée, puis une cellule LFP ;
+- décharge CC avant profil de mission ;
+- modèle électrothermique le plus simple capable de fournir les signaux requis ;
+- température principalement entre 10 et 55 °C, avec quelques essais sous 0 °C ;
+- SOC de 0 à 100 %, en séparant domaine demandé et domaine validé ;
+- charge jusqu'à 2 C ;
+- décharge continue jusqu'à 3 C, puis impulsions plus élevées ;
+- échauffement du module dans une condition thermique mesurée ;
+- vieillissement en cyclage étudié d'abord de manière comparative ;
+- convention publique cible : courant de décharge négatif.
 
-## Phase 2 — Simplifier l'application
+Le pack est pertinent après validation du modèle cellule. Le véhicule est hors
+périmètre.
 
-Objectif : rendre chaque cas d'usage lisible dans un module court.
+## Règles de preuve
 
-- [x] créer le point d'entrée public `interface/agent_api.py` utilisé par MCP ;
-- [x] extraire les handlers de simulation, catalogue cellule et pré-validation ;
-- [x] extraire les handlers de comparaison et sensibilité ;
-- [x] extraire le handler de session ;
-- [x] extraire les outils expérimentaux de vieillissement et garantie ;
-- [x] extraire les outils expérimentaux pack, sélection cellule et autonomie ;
-- [x] extraire les outils expérimentaux de recharge, fenêtre opératoire et derating ;
-- [x] remplacer `application_services.py` par des services ciblés et un shim de compatibilité ;
-- [x] réduire `investigation_tools.py` en modules ciblés et simplifier `parameter_sweep.py` autour du service canonique ;
-- [x] séparer métadonnées du domaine et découverte des outils dans `api_schema.py`.
+Chaque résultat doit distinguer :
 
-Critère de sortie : le chemin d'une requête MCP vers PyBaMM se suit sans ouvrir un fichier de plus de 500 lignes.
+- **simulé** : sortie directe du modèle ;
+- **dérivé** : calcul effectué à partir des sorties ;
+- **supposé** : valeur imposée sans preuve expérimentale ;
+- **mesuré** : donnée d'essai avec provenance.
 
-## Phase 3 — Recentrer le MCP
+Chaque étude publie le jeu de paramètres, le modèle, les conditions initiales,
+le protocole, les conventions, les limites et la version de PyBaMM.
 
-Objectif : exposer un petit ensemble d'outils fiables pour l'investigation cellule.
+Une entrée impossible ou une combinaison physique incompatible bloque
+l'exécution. Une extrapolation ou un domaine insuffisamment validé produit un
+avertissement et marque le résultat comme exploratoire.
 
-- [x] publier un statut de maturité et un domaine de validité par réponse d'outil ;
-- [x] exposer d'abord découverte, simulation, comparaison et sensibilité ;
-- [x] unifier les erreurs MCP et ajouter un identifiant de simulation ;
-- [x] rendre les hypothèses visibles dans chaque réponse ;
-- [x] tester le protocole MCP séparément des longues simulations PyBaMM.
+Une recherche bibliographique démontre provenance et plausibilité. Une
+validation exige en plus une comparaison à des données indépendantes.
 
-Critère de sortie : un client MCP peut découvrir, exécuter et interpréter une étude sans connaître les détails internes et sans recevoir une confiance injustifiée.
+## Phase 0 — Sécuriser et inventorier
 
-## Phase 4 — Construire l'assistant électrochimique
+- [x] créer une branche de récupération ;
+- [x] enregistrer l'état interrompu dans un checkpoint non audité ;
+- [ ] établir la matrice des responsabilités et dépendances ;
+- [ ] classer chaque API en `core`, `experimental` ou `legacy` ;
+- [ ] identifier les couches de compatibilité supprimables ;
+- [ ] définir les règles de dépendance et de taille des modules ;
+- [ ] verrouiller une version de PyBaMM pendant la validation.
 
-Objectif : passer d'une collection d'outils à une méthode d'investigation guidée.
+Critère de sortie : le chemin API → modèle → PyBaMM → résultat est explicable,
+et chaque module du noyau possède une responsabilité unique.
 
-- [x] définir un contrat de plan d'expérience non exécutable et traçable ;
-- [x] demander ou proposer les hypothèses structurées manquantes ;
-- [x] proposer le modèle minimal selon les signaux requis ;
-- [x] produire un handoff exact vers `run_simulation` pour les plans cœur compatibles ;
-- [x] transformer de manière conservatrice et traçable une question libre en champs d'expérience ;
-- [x] définir un contrat sourcé de trace d'essai cellule ;
-- [x] comparer une décharge CC simulée et mesurée sans extrapolation cachée ;
-- [x] produire une conclusion bornée avec niveau de confiance et prochaines expériences pour la comparaison essai ;
-- généraliser l'évaluation de preuve aux comparaisons multi-conditions et aux autres investigations cœur.
+## Phase 1 — Référence NMC électrique
 
-## Phase 5 — Réintroduire les fonctions avancées
+- [ ] identifier la cellule commerciale et sa fiche technique ;
+- [ ] créer un manifeste de données et de métadonnées ;
+- [ ] importer courant, tension et température depuis CSV ou NDJSON ;
+- [ ] représenter SOC, tension et préconditionnement initiaux ;
+- [ ] appliquer la convention de décharge négative de bout en bout ;
+- [ ] choisir automatiquement le modèle le plus simple, avec justification ;
+- [ ] comparer essai et simulation sans extrapolation ;
+- [ ] calculer erreur RMS/max de tension, capacité et instant de coupure ;
+- [ ] conserver les courbes comme références de non-régression.
 
-Optimisation de charge, vieillissement, garantie, pack et véhicule seront promus un par un seulement après :
+Critère de sortie : une commande Python reproduit l'étude, publie ses hypothèses
+et explique les principaux écarts.
 
-1. définition de la décision d'ingénierie visée ;
-2. liste des hypothèses et paramètres requis ;
-3. domaine de validité ;
-4. cas de référence ;
-5. contrat de sortie ;
-6. revue physique et tests.
+## Phase 2 — Référence thermique
 
-Une fonction non validée peut rester expérimentale ; elle ne doit pas être présentée comme une prédiction d'ingénierie fiable.
+- [ ] documenter températures ambiante et initiale, position du capteur et montage ;
+- [ ] documenter les conditions de contact et refroidissement connues ;
+- [ ] vérifier la cohérence des propriétés thermiques du paramétrage ;
+- [ ] comparer température maximale et élévation de température ;
+- [ ] convertir de façon traçable le courant pack en courant cellule ;
+- [ ] signaler les conclusions impossibles sans modèle thermique pack.
+
+Critère de sortie : l'erreur thermique est quantifiée face à au moins une mesure
+indépendante et le domaine de validité est explicite.
+
+## Phase 3 — Évaluation d'un 2RC
+
+- [ ] définir la grille SOC × température × SOH × sens du courant ;
+- [ ] générer des profils PyBaMM traçables ;
+- [ ] importer les sorties du 2RC sans l'identifier automatiquement ;
+- [ ] comparer 2RC, PyBaMM et essai quand les trois existent ;
+- [ ] publier RMSE, erreur maximale et erreur pendant les impulsions ;
+- [ ] définir le format d'une éventuelle table BMS.
+
+Critère de sortie : les domaines où le 2RC est suffisant ou insuffisant sont
+visibles sans traiter PyBaMM comme une vérité expérimentale.
+
+## Phase 4 — Vieillissement comparatif
+
+- [ ] choisir un paramétrage NMC compatible avec les mécanismes étudiés ;
+- [ ] documenter SEI, perte de lithium, perte de matière active et lithium plating ;
+- [ ] comparer 4,1 V, 4,2 V et 4,3 V lorsque le paramétrage le permet ;
+- [ ] simuler d'abord des centaines de cycles ;
+- [ ] distinguer classement relatif et prédiction absolue ;
+- [ ] ajouter des données de vieillissement lorsqu'elles deviennent disponibles.
+
+Critère de sortie : l'outil explique une tendance comparative, les mécanismes
+activés et la faiblesse de la preuve.
+
+## Phase 5 — Variabilité pack 96s2p
+
+- [ ] définir les distributions de capacité, résistance, SOC et température ;
+- [ ] propager statistiquement ces dispersions ;
+- [ ] étudier la cellule limitante et la puissance disponible ;
+- [ ] comparer aux températures pack disponibles ;
+- [ ] reporter partage de courant 2p, équilibrage et réseau thermique tant que les
+  données ne montrent pas qu'ils sont nécessaires.
+
+Critère de sortie : les hypothèses statistiques sont visibles et une conclusion
+pack n'est jamais présentée comme une sortie directe du modèle cellule.
+
+## Politique des outils existants
+
+Les outils actuels de véhicule, sélection, garantie, optimisation et screening
+restent accessibles comme `experimental` ou `legacy`. Ils ne font pas partie du
+parcours recommandé et ne peuvent être promus sans besoin d'ingénierie, provenance,
+domaine de validité, données indépendantes, critères d'acceptation et revue physique.
+
+## Méthode de développement
+
+- une décision discutée avant chaque changement physique ou d'API ;
+- un petit commit par décision ;
+- tests logiciels rapides à chaque commit ;
+- cas scientifique ciblé pour tout changement de physique ;
+- validation du propriétaire pour les ruptures d'API ;
+- aucun nouvel outil sans besoin réel, hypothèses et preuve.
