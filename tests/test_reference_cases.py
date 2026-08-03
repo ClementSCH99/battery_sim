@@ -40,8 +40,27 @@ class TestReferenceCaseDefinitions:
             assert mapping.parameter_set == case.parameter_set
 
     def test_lfp_family_never_maps_to_licoo2_marquis_set(self):
-        assert resolve_parameter_mapping(Cell.preset("LFP_5AH")).parameter_set == "Prada2013"
-        assert resolve_parameter_mapping(Cell.preset("LFP_PRADA_2P3AH")).parameter_set == "Prada2013"
+        generic = resolve_parameter_mapping(Cell.preset("LFP_5AH"))
+        reference = resolve_parameter_mapping(Cell.preset("LFP_PRADA_2P3AH"))
+
+        assert generic.parameter_set == "Prada2013"
+        assert generic.mapping_policy == "chemistry_family_proxy"
+        assert reference.parameter_set == "Prada2013"
+        assert reference.mapping_policy == "explicit_parameterization"
+
+    @pytest.mark.parametrize("preset_name", ["NCA_5AH", "LCO_3AH", "LMNO_4AH"])
+    def test_distinct_chemistries_never_silently_use_chen2020(self, preset_name):
+        with pytest.raises(ValueError, match="Unsupported chemistry mapping"):
+            resolve_parameter_mapping(Cell.preset(preset_name))
+
+    def test_declared_parameter_set_must_match_resolved_chemistry(self):
+        cell = Cell(
+            chemistry="NMC-CHEN",
+            metadata={"pybamm_parameter_set": "Prada2013"},
+        )
+
+        with pytest.raises(ValueError, match="metadata declares"):
+            resolve_parameter_mapping(cell)
 
     def test_voltage_windows_are_explicit_backend_overrides(self):
         backend = PyBaMMBackend()
@@ -60,7 +79,7 @@ class TestReferenceCaseDefinitions:
             model="single_particle",
             cell_chemistry="LFP-PRADA",
             parameter_set="Prada2013",
-            parameter_mapping_policy="exact_match",
+            parameter_mapping_policy="explicit_parameterization",
         )
 
         restored = SimulationMetadata.from_dict(metadata.to_dict())

@@ -19,9 +19,6 @@ _CHEMISTRY_PARAMETER_SETS = {
     "LFP-PRADA": "Prada2013",
     "NMC": "Chen2020",
     "NMC-CHEN": "Chen2020",
-    "NCA": "Chen2020",
-    "LCO": "Chen2020",
-    "LMNO": "Chen2020",
     # Validated parameter sets from PyBaMM literature
     "NMC-ECKER": "Ecker2015",        # Ecker et al. 2015, Kokam SLPB 75106100 pouch
     "NMC-OKANE": "OKane2022",        # O'Kane et al. 2022, degradation-focused
@@ -47,7 +44,27 @@ def resolve_parameter_mapping(cell: Cell) -> ParameterMappingPolicy:
             f"Unsupported chemistry mapping for '{chemistry}'. Add an explicit mapping policy before running this preset."
         )
 
-    mapping_policy = "exact_match" if normalized_chemistry == chemistry else "variant_family_match"
+    declared_parameter_set = cell.metadata.get("pybamm_parameter_set")
+    if (
+        declared_parameter_set is not None
+        and declared_parameter_set != parameter_set
+    ):
+        raise ValueError(
+            "Cell metadata declares PyBaMM parameter set "
+            f"'{declared_parameter_set}', but chemistry '{chemistry}' resolves "
+            f"to '{parameter_set}'."
+        )
+
+    explicit_parameterizations = {
+        "LFP-PRADA", "NMC-CHEN", "NMC-ECKER",
+        "NMC-OKANE", "NMC-MOHTAT", "NMC-AI",
+    }
+    if chemistry in explicit_parameterizations:
+        mapping_policy = "explicit_parameterization"
+    elif normalized_chemistry != chemistry:
+        mapping_policy = "chemistry_variant_proxy"
+    else:
+        mapping_policy = "chemistry_family_proxy"
     return ParameterMappingPolicy(
         chemistry=chemistry,
         normalized_chemistry=normalized_chemistry,
