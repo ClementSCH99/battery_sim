@@ -19,6 +19,7 @@ from battery_sim.core.charging_strategies import (
 )
 from battery_sim.core.agent_api import AgentAPI
 from battery_sim.core.protocol import Protocol
+from battery_sim.core.protocol import ConstantCurrent
 from battery_sim.core.result_formatter import DualFormatResult
 from battery_sim.core.simulation_backend import SimulationBackend
 from battery_sim import mcp_server
@@ -71,6 +72,21 @@ class TestChargingStrategyBuilder:
         assert protocol is not None
         # Pulse should have multiple segments (charge+rest cycles)
         assert len(protocol.steps) >= 6
+
+    def test_explicit_charge_segments_use_negative_current_convention(self):
+        """Constant-current charge segments must use the repository charge sign."""
+        cell = Cell.preset("LFP_5AH")
+        for protocol in (
+            ChargingStrategyBuilder.multi_step_cc(cell),
+            ChargingStrategyBuilder.pulse_charging_0_5C(cell),
+        ):
+            currents = [
+                step.current_A
+                for step in protocol.steps
+                if isinstance(step, ConstantCurrent)
+            ]
+            assert currents
+            assert all(current < 0 for current in currents)
     
     def test_build_all_strategies(self):
         """Verify build method creates all standard strategies."""
@@ -331,7 +347,7 @@ class TestAgentAPIChargingStrategies:
         assert "| Strategy |" in markdown  # Table header
     
     def test_recommended_strategy_in_json(self):
-        """Verify recommendation is included."""
+        """A failed comparison must not manufacture a recommendation."""
         api = AgentAPI()
         result = api.compare_charging_strategies(
             "LFP_5AH",
@@ -341,7 +357,11 @@ class TestAgentAPIChargingStrategies:
         
         json_data = result.json_data
         assert 'recommended_strategy' in json_data
-        assert json_data['recommended_strategy'] in ["standard_1C", "gentle_0.5C"]
+        successful = [s for s in json_data["strategies"] if s["status"] == "ok"]
+        if json_data["recommended_strategy"] is None:
+            assert not any(s["charge_time_min"] is not None for s in successful)
+        else:
+            assert json_data['recommended_strategy'] in ["standard_1C", "gentle_0.5C"]
     
     def test_all_built_in_strategies_evaluated(self):
         """Verify all strategies evaluated when none specified."""

@@ -702,16 +702,16 @@ class APISchema:
     """
     The main introspection API.
     
-    TEACHING: This is the "control panel" for understanding what the API offers.
-    Before running an experiment, you ask: "What can I do?"
+    TEACHING: This is the control panel for the scientific vocabulary used by
+    the API. Executable tool discovery belongs to AgentAPI.
     
     This class answers:
     1. APISchema().get_parameter_space() - What can I vary?
     2. APISchema().get_signals() - What can I measure?
     3. APISchema().get_presets() - What starting points are available?
-    4. APISchema().get_tools() - What operations can I do?
-    
-    The LLM uses this to decide what's worth exploring.
+    Tool discovery is owned by AgentAPI.get_available_tools(), which derives
+    its catalog from executable @agent_tool methods. This schema describes only
+    the scientific vocabulary used by those tools.
     """
     
     def __init__(self):
@@ -891,90 +891,9 @@ class APISchema:
         """
         return self._preset_catalog
     
-    def get_tools(self) -> List[Dict[str, Any]]:
-        """
-        Returns: Structured catalog of the currently exposed AgentAPI tools.
-        
-        LLM USE: "What can I DO?"
-        """
-        return [
-            {
-                'name': 'describe_api',
-                'description': 'Get a human-readable description of the entire API',
-                'parameters': {},
-            },
-            {
-                'name': 'list_presets',
-                'description': 'List all available cell chemistry presets',
-                'parameters': {
-                    'chemistry': {
-                        'type': 'string',
-                        'description': 'Filter by chemistry (optional)',
-                    }
-                },
-            },
-            {
-                'name': 'compare_presets',
-                'description': 'Compare multiple cell chemistry presets side-by-side',
-                'parameters': {
-                    'preset_names': {
-                        'type': 'array',
-                        'items': {'type': 'string'},
-                        'description': 'List of preset names to compare',
-                    },
-                    'environment_temp_C': {
-                        'type': 'number',
-                        'description': 'Ambient temperature around the cell (default 25°C)',
-                        'optional': True,
-                    },
-                },
-            },
-            {
-                'name': 'sensitivity_analysis',
-                'description': 'Analyze how parameters affect battery performance',
-                'parameters': {
-                    'preset_name': {
-                        'type': 'string',
-                        'description': 'Cell chemistry to analyze',
-                    },
-                    'parameters': {
-                        'type': 'array',
-                        'items': {'type': 'string'},
-                        'description': 'Parameters to analyze (e.g., [temperature_C, nominal_capacity_Ah])',
-                    },
-                },
-            },
-            {
-                'name': 'check_feasibility',
-                'description': 'Check if a cell/environment combination is physically feasible',
-                'parameters': {
-                    'preset_name': {
-                        'type': 'string',
-                        'description': 'Cell preset',
-                    },
-                    'temperature_C': {
-                        'type': 'number',
-                        'description': 'Ambient temperature around the cell',
-                    },
-                },
-            },
-            {
-                'name': 'save_session',
-                'description': 'Save the current investigation session to a file',
-                'parameters': {
-                    'filepath': {
-                        'type': 'string',
-                        'description': 'Path to save session JSON (e.g., investigation.json)',
-                    },
-                },
-            },
-            {
-                'name': 'get_session_summary',
-                'description': 'Get a summary of investigations run in this session',
-                'parameters': {},
-            },
-        ]
-    
+    # Tool discovery intentionally belongs to AgentAPI and is derived from
+    # @agent_tool methods. APISchema only describes the scientific domain.
+
     # ========================================================================
     # Convenience Methods for Common Queries
     # ========================================================================
@@ -1026,5 +945,4 @@ class APISchema:
             'parameter_space': self._parameter_space.to_dict(),
             'signals': self._signal_catalog.to_dict(),
             'presets': self._preset_catalog.to_dict(),
-            'tools': self.get_tools(),
         }

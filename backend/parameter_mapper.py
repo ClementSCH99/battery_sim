@@ -12,8 +12,13 @@ class ParameterMappingPolicy:
 
 
 _CHEMISTRY_PARAMETER_SETS = {
-    "LFP": "Marquis2019",
+    # Prada2013 is the only installed parameter set explicitly parameterized
+    # for an LFP positive electrode. Marquis2019 uses a LiCoO2 OCP and must not
+    # be labelled as LFP even if a simulation with it happens to converge.
+    "LFP": "Prada2013",
+    "LFP-PRADA": "Prada2013",
     "NMC": "Chen2020",
+    "NMC-CHEN": "Chen2020",
     "NCA": "Chen2020",
     "LCO": "Chen2020",
     "LMNO": "Chen2020",

@@ -12,11 +12,15 @@ import pytest
 import math
 from battery_sim.core.cell_presets import CellPresets
 from battery_sim.core.investigation_tools import PackSizer, PackConfiguration
+from battery_sim.core.pack import PackSizer as FocusedPackSizer
 from battery_sim.core.agent_api import AgentAPI
 
 
 class TestPackSizerMath:
     """Test core PackSizer calculation logic."""
+
+    def test_legacy_import_is_identity_compatible(self):
+        assert PackSizer is FocusedPackSizer
     
     def test_size_pack_basic_lfp(self):
         """Test basic pack sizing with LFP_5AH."""

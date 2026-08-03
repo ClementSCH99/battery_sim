@@ -106,8 +106,8 @@ class TestChargingOptimizer:
         # but aging should differ
         assert all(r.charge_time_s is not None for r in results)
 
-    def test_capacity_fade_increases_with_higher_current(self):
-        """Higher charge current should lead to more capacity fade."""
+    def test_single_charge_screen_does_not_invent_capacity_fade(self):
+        """A single charge without an aging signal cannot support fade claims."""
         optimizer = ChargingOptimizer(backend=PyBaMMBackend())
         cell = Cell.preset("LFP_5AH")
         
@@ -120,12 +120,8 @@ class TestChargingOptimizer:
             temperature_C=25.0,
         )
         
-        # Separate by current (first is lower, last is higher if sorted by current too)
-        if len(results) >= 2:
-            # Note: results are sorted by score, not by current
-            # But capacity fade should still increase with current generally
-            fades = [r.capacity_fade_per_cycle for r in results if r.capacity_fade_per_cycle is not None]
-            assert len(fades) > 0, "Should have capacity fade values"
+        assert len(results) >= 2
+        assert all(r.capacity_fade_per_cycle is None for r in results)
 
     def test_all_results_have_required_fields(self):
         """Each result should have all required fields."""

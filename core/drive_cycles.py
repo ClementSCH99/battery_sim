@@ -174,8 +174,9 @@ def scale_drive_cycle(
     
     Args:
         profile: DriveCycleProfile (with normalized power 0.0–1.0)
-        vehicle_mass_kg: Vehicle mass (informational, not directly used in scaling)
-        peak_power_kW: Peak available power (used for scaling)
+        vehicle_mass_kg: Vehicle mass used for a simple linear scaling relative
+            to the 1800 kg reference profile
+        peak_power_kW: Peak demand of the normalized reference profile
     
     Returns:
         List of (power_W, duration_s) tuples representing constant-power segments
@@ -185,7 +186,17 @@ def scale_drive_cycle(
         >>> segments = scale_drive_cycle(profile, peak_power_kW=150.0)
         >>> # segments = [(30000, 30), (45000, 30), ...]
     """
-    peak_power_W = peak_power_kW * 1000.0
+    if vehicle_mass_kg <= 0:
+        raise ValueError("vehicle_mass_kg must be positive")
+    if peak_power_kW <= 0:
+        raise ValueError("peak_power_kW must be positive")
+
+    # These bundled profiles are normalized load shapes, not speed traces.
+    # Linear mass scaling is therefore an explicit screening assumption; a
+    # longitudinal vehicle model is required for a predictive power trace.
+    reference_mass_kg = 1800.0
+    mass_scale = vehicle_mass_kg / reference_mass_kg
+    peak_power_W = peak_power_kW * mass_scale * 1000.0
     segments: list[tuple[float, float]] = []
     
     for i in range(len(profile.time_s) - 1):

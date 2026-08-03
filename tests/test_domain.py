@@ -105,6 +105,8 @@ class TestCellPresets:
             cell.validate()
 
     @pytest.mark.parametrize("preset_name", [
+        "LFP_PRADA_2P3AH",
+        "NMC_CHEN_LGM50",
         "NMC_ECKER_KOKAM",
         "NMC_OKANE_AGING",
         "NMC_MOHTAT_POUCH",
@@ -374,6 +376,23 @@ class TestScaleDriveCycle:
             if p1 != 0:
                 assert abs(p2 / p1 - 2.0) < 0.01
 
+    def test_scale_with_vehicle_mass_relative_to_reference(self):
+        profile = get_drive_cycle("WLTP")
+
+        reference = scale_drive_cycle(profile, vehicle_mass_kg=1800.0)
+        lighter = scale_drive_cycle(profile, vehicle_mass_kg=900.0)
+
+        for (reference_power, _), (lighter_power, _) in zip(reference, lighter):
+            assert lighter_power == pytest.approx(reference_power * 0.5)
+
+    def test_scale_rejects_non_positive_vehicle_inputs(self):
+        profile = get_drive_cycle("WLTP")
+
+        with pytest.raises(ValueError, match="vehicle_mass_kg"):
+            scale_drive_cycle(profile, vehicle_mass_kg=0.0)
+        with pytest.raises(ValueError, match="peak_power_kW"):
+            scale_drive_cycle(profile, peak_power_kW=0.0)
+
 
 class TestDriveProfile:
     """DriveProfile step creation and validation."""
@@ -468,6 +487,11 @@ class TestEnvironmentValidation:
         with pytest.raises(EnvironmentValidationError):
             env.validate()
 
+    def test_initial_cell_temperature_is_validated_independently(self):
+        env = Environment(temperature_C=25.0, initial_temperature_C=120.0)
+        with pytest.raises(EnvironmentValidationError, match="Initial cell"):
+            env.validate()
+
     def test_boundary_cold_accepted(self):
         """Exactly -40°C is the lower bound — should be accepted."""
         env = Environment(temperature_C=-40.0)
@@ -508,6 +532,19 @@ class TestEnvironmentAlias:
     def test_alias_property_same_value(self):
         env = Environment(temperature_C=30.0)
         assert env.ambient_temperature_C == env.temperature_C
+
+    def test_initial_temperature_defaults_to_ambient(self):
+        env = Environment(ambient_temperature_C=12.0)
+        assert env.initial_temperature_C == 12.0
+
+    def test_initial_temperature_can_differ_from_ambient(self):
+        env = Environment(
+            ambient_temperature_C=5.0,
+            initial_temperature_C=25.0,
+        )
+        env.validate()
+        assert env.ambient_temperature_C == 5.0
+        assert env.initial_temperature_C == 25.0
 
     def test_missing_temperature_raises(self):
         with pytest.raises(TypeError):

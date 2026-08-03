@@ -20,6 +20,7 @@ This enables reproducibility and performance analysis.
 from dataclasses import dataclass, field
 from typing import Optional
 from datetime import datetime
+from uuid import uuid4
 from battery_sim.core.solver import SolverConfig, Solver
 
 
@@ -56,6 +57,9 @@ class SimulationMetadata:
     solver_type: str
     """Solver name: "CasADi" or "SciPy" or similar"""
 
+    simulation_id: str = field(default_factory=lambda: str(uuid4()))
+    """Unique identifier for correlating results, logs and MCP responses."""
+
     duration_source: str = "wall_clock"
     """Source of duration_s, e.g. wall_clock or pybamm_total_time"""
     
@@ -83,6 +87,24 @@ class SimulationMetadata:
     
     protocol_steps: int = 0
     """Number of protocol steps (charge/discharge/rest cycles) in the simulation"""
+
+    backend_name: str = "unknown"
+    """Execution adapter that produced the run, for example ``PyBaMM``."""
+
+    backend_version: Optional[str] = None
+    """Installed backend version used for the run."""
+
+    model: Optional[str] = None
+    """Canonical electrochemical model identifier."""
+
+    cell_chemistry: Optional[str] = None
+    """Chemistry identifier supplied by the simulation request."""
+
+    parameter_set: Optional[str] = None
+    """Concrete backend parameter set used to instantiate the model."""
+
+    parameter_mapping_policy: Optional[str] = None
+    """Policy by which the domain chemistry selected the parameter set."""
     
     @classmethod
     def create(
@@ -95,6 +117,12 @@ class SimulationMetadata:
         duration_source: str = "wall_clock",
         protocol_steps: int = 0,
         solver_iterations_kind: str = "time_points",
+        backend_name: str = "unknown",
+        backend_version: Optional[str] = None,
+        model: Optional[str] = None,
+        cell_chemistry: Optional[str] = None,
+        parameter_set: Optional[str] = None,
+        parameter_mapping_policy: Optional[str] = None,
     ) -> "SimulationMetadata":
         """
         Factory method to create metadata from SolverConfig and runtime data.
@@ -129,6 +157,12 @@ class SimulationMetadata:
             atol=solver_config.atol,
             initial_soc=solver_config.initial_soc,
             protocol_steps=protocol_steps,
+            backend_name=backend_name,
+            backend_version=backend_version,
+            model=model,
+            cell_chemistry=cell_chemistry,
+            parameter_set=parameter_set,
+            parameter_mapping_policy=parameter_mapping_policy,
         )
     
     def to_dict(self) -> dict:
@@ -141,6 +175,7 @@ class SimulationMetadata:
         """
         return {
             "timestamp_utc": self.timestamp_utc,
+            "simulation_id": self.simulation_id,
             "duration_s": self.duration_s,
             "duration_source": self.duration_source,
             "solver_type": self.solver_type,
@@ -152,6 +187,12 @@ class SimulationMetadata:
             "atol": self.atol,
             "initial_soc": self.initial_soc,
             "protocol_steps": self.protocol_steps,
+            "backend_name": self.backend_name,
+            "backend_version": self.backend_version,
+            "model": self.model,
+            "cell_chemistry": self.cell_chemistry,
+            "parameter_set": self.parameter_set,
+            "parameter_mapping_policy": self.parameter_mapping_policy,
         }
     
     @classmethod
@@ -177,9 +218,17 @@ class SimulationMetadata:
               Configuration: rtol=1e-6, atol=1e-9, initial_soc=1.0
         """
         status_text = "Converged" if self.success else "Failed"
+        provenance = self.backend_name
+        if self.backend_version:
+            provenance += f" {self.backend_version}"
+        if self.parameter_set:
+            provenance += f", parameters={self.parameter_set}"
+        if self.model:
+            provenance += f", model={self.model}"
         return f"""Simulation Metadata:
   Timestamp: {self.timestamp_utc}
   Duration: {self.duration_s:.3f} seconds
-    Solver: {self.solver_type} ({self.solver_iterations} {self.solver_iterations_kind})
-    Convergence: {status_text} ({self.convergence_reason})
+  Engine: {provenance}
+  Solver: {self.solver_type} ({self.solver_iterations} {self.solver_iterations_kind})
+  Convergence: {status_text} ({self.convergence_reason})
   Configuration: rtol={self.rtol:.0e}, atol={self.atol:.0e}, initial_soc={self.initial_soc:.2f}"""

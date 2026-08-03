@@ -78,25 +78,37 @@ configuration instructions.
 
 ## Documentation
 
+- **[Project Direction](docs/project_direction.md)** — Product purpose, scope, and engineering principles
+- **[Architecture](docs/architecture.md)** — Current execution flow and module responsibilities
+- **[Recovery Roadmap](docs/roadmap.md)** — Progressive refactoring and scientific validation plan
+- **[Tool Maturity](docs/tool_maturity.md)** — Core versus experimental agent capabilities
+- **[Experiment Planning](docs/experiment_planning.md)** — Reviewable model, protocol, signal and assumption proposals
+- **[Model-to-Test Comparison](docs/test_comparison.md)** — Sourced CC-discharge residual analysis without hidden extrapolation
+- **[Scientific Reference Cases](docs/reference_cases.md)** — Literature-backed LFP/NMC regression cases
 - **[Usage Guide](docs/usage_guide.md)** — Full tutorial: protocols, comparisons, sweeps, plotting
 - **[MCP Setup Guide](docs/mcp_setup.md)** — Connect battery_sim to VS Code Copilot or Claude Desktop
 
 ## Architecture
 
-The codebase follows a clean layered architecture: domain objects (`Cell`, `Protocol`, `Simulation`) contain no infrastructure dependencies, application services orchestrate use cases, and the PyBaMM backend sits behind an abstract port. See [docs/audit/01_target_architecture.md](docs/audit/01_target_architecture.md) for the full architecture reference.
+The codebase uses a layered architecture: domain objects (`Cell`, `Protocol`, `Simulation`) express simulation intent, application services orchestrate use cases, and the PyBaMM backend sits behind an abstract port. The architecture is being simplified around a cell-level electrochemical investigation assistant. See the [current architecture](docs/architecture.md); archived audit reports are historical records, not current references.
 
 ## Running Tests
 
 ```bash
-# Architectural guard tests (fast, no PyBaMM execution)
+# Fast development suite (no intentionally slow studies)
+pytest -m "not slow" -q
+
+# Architectural guard tests only
 pytest tests/test_architecture.py -v
 
-# Smoke tests (run real simulations, requires PyBaMM)
+# PyBaMM smoke tests
 pytest tests/test_smoke.py -v
 
-# All tests
+# Entire suite, including long parameter grids and advanced studies
 pytest tests/ -v
 ```
+
+The complete suite can take several minutes. Use the fast suite during normal refactoring and run the relevant slow module when changing scientific behavior.
 
 ## Dependencies
 

@@ -20,7 +20,7 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["battery_sim", "battery_sim.backend", "battery_sim.core", "battery_sim.types"]
+packages = ["battery_sim", "battery_sim.backend", "battery_sim.core", "battery_sim.core.services", "battery_sim.interface", "battery_sim.types"]
 
 [tool.setuptools.package-dir]
 "battery_sim" = "."

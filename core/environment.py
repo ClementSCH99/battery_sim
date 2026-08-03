@@ -11,12 +11,13 @@ _VALID_THERMAL_MODELS = {"isothermal", "lumped", "x-lumped", "x-full"}
 class Environment:
     """Thermal boundary conditions for a simulation.
 
-    `temperature_C` is the canonical public input and represents the ambient
-    temperature around the cell. `ambient_temperature_C` is the explicit alias
-    exposed for readability.
+    `temperature_C` is the backward-compatible public input for ambient
+    temperature. `initial_temperature_C` independently sets the cell's initial
+    temperature and defaults to ambient when omitted.
     """
 
     temperature_C: float
+    initial_temperature_C: float
     convection_W_per_m2K: Optional[float] = None
     thermal_model: Optional[str] = None
 
@@ -25,6 +26,7 @@ class Environment:
         temperature_C: Optional[float] = None,
         convection_W_per_m2K: Optional[float] = None,
         ambient_temperature_C: Optional[float] = None,
+        initial_temperature_C: Optional[float] = None,
         thermal_model: Optional[str] = None,
         **legacy_kwargs: Optional[float],
     ) -> None:
@@ -62,6 +64,13 @@ class Environment:
             )
 
         object.__setattr__(self, "temperature_C", resolved_temperature_C)
+        object.__setattr__(
+            self,
+            "initial_temperature_C",
+            resolved_temperature_C
+            if initial_temperature_C is None
+            else initial_temperature_C,
+        )
         object.__setattr__(self, "convection_W_per_m2K", convection_W_per_m2K)
         object.__setattr__(self, "thermal_model", thermal_model)
 
@@ -80,6 +89,11 @@ class Environment:
         if not (-40.0 <= self.temperature_C <= 100.0):
             raise EnvironmentValidationError(
                 "Ambient temperature must be between -40.0°C and 100.0°C."
+            )
+
+        if not (-40.0 <= self.initial_temperature_C <= 100.0):
+            raise EnvironmentValidationError(
+                "Initial cell temperature must be between -40.0°C and 100.0°C."
             )
 
         if self.convection_W_per_m2K is not None and self.convection_W_per_m2K <= 0:

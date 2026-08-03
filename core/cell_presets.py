@@ -82,7 +82,11 @@ class CellPresets:
     LFP_5AH = CellPreset(
         name="LFP_5AH",
         chemistry="LFP",
-        description="5 Ah LiFePO4 cell (CATL, BYD typical specs). Safe, long cycle life (~3000 cycles), lower energy density (~160 Wh/kg).",
+        description=(
+            "Synthetic 5 Ah LFP exploration preset mapped to Prada2013. "
+            "Nominal and packaging values are illustrative; this is not a "
+            "CATL/BYD digital twin."
+        ),
         cell=Cell(
             chemistry="LFP",
             nominal_capacity_Ah=5.0,                 # 5 Ah
@@ -98,7 +102,9 @@ class CellPresets:
                 "min_voltage_v": "2.5",
                 "max_voltage_v": "3.65",
                 "cycle_life": "3000-5000",
-                "source": "CATL/BYD specifications"
+                "source": "illustrative engineering assumptions; electrochemistry from PyBaMM Prada2013",
+                "pybamm_parameter_set": "Prada2013",
+                "representation": "synthetic scaling; not a calibrated commercial cell",
             }
         ),
         weight_kg=0.100,                            # ~100g typical for 5Ah
@@ -111,7 +117,7 @@ class CellPresets:
     LFP_10AH = CellPreset(
         name="LFP_10AH",
         chemistry="LFP",
-        description="10 Ah LiFePO4 cell. Scaled version for larger capacity applications.",
+        description="Synthetic 10 Ah scaling of the Prada2013 LFP exploration preset.",
         cell=Cell(
             chemistry="LFP",
             nominal_capacity_Ah=10.0,
@@ -127,7 +133,9 @@ class CellPresets:
                 "min_voltage_v": "2.5",
                 "max_voltage_v": "3.65",
                 "cycle_life": "3000-5000",
-                "source": "CATL/BYD specifications"
+                "source": "illustrative engineering assumptions; electrochemistry from PyBaMM Prada2013",
+                "pybamm_parameter_set": "Prada2013",
+                "representation": "synthetic scaling; not a calibrated commercial cell",
             }
         ),
         weight_kg=0.200,                            # 2× weight of 5Ah
@@ -286,7 +294,57 @@ class CellPresets:
         max_discharge_c_rate=2.5,
     )
 
-    # ============ Validated PyBaMM Parameter Sets ============
+    # ============ Literature-backed PyBaMM reference parameter sets ============
+
+    LFP_PRADA_2P3AH = CellPreset(
+        name="LFP_PRADA_2P3AH",
+        chemistry="LFP",
+        description=(
+            "2.3 Ah LFP/graphite reference case using the PyBaMM Prada2013 "
+            "parameter set. Intended for reproducible model benchmarks, not "
+            "as a digital twin of a commercial cell."
+        ),
+        cell=Cell(
+            chemistry="LFP-PRADA",
+            nominal_capacity_Ah=2.3,
+            nominal_voltage_V=3.2,
+            metadata={
+                "source": "Prada et al., J. Electrochem. Soc., 2013",
+                "designed_for": "reproducible LFP reference simulations",
+                "anode": "graphite",
+                "cathode": "LFP",
+                "min_voltage_v": "2.0",
+                "max_voltage_v": "3.6",
+                "pybamm_parameter_set": "Prada2013",
+                "representation": "literature parameter set; not a commercial-cell digital twin",
+            },
+        ),
+    )
+
+    NMC_CHEN_LGM50 = CellPreset(
+        name="NMC_CHEN_LGM50",
+        chemistry="NMC",
+        description=(
+            "5 Ah graphite/NMC reference case using the PyBaMM Chen2020 "
+            "LG M50 parameter set. Intended for reproducible model benchmarks."
+        ),
+        cell=Cell(
+            chemistry="NMC-CHEN",
+            nominal_capacity_Ah=5.0,
+            nominal_voltage_V=3.63,
+            metadata={
+                "source": "Chen et al., J. Electrochem. Soc., 2020",
+                "cell_format": "LG M50 cylindrical cell",
+                "designed_for": "reproducible NMC reference simulations",
+                "anode": "graphite",
+                "cathode": "NMC",
+                "min_voltage_v": "2.5",
+                "max_voltage_v": "4.2",
+                "pybamm_parameter_set": "Chen2020",
+                "representation": "literature parameter set; not a calibrated project cell",
+            },
+        ),
+    )
 
     # Ecker et al. 2015 — Kokam SLPB 75106100 NMC/graphite pouch cell
     NMC_ECKER_KOKAM = CellPreset(

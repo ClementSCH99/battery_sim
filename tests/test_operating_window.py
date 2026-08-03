@@ -158,12 +158,12 @@ class TestOperatingWindowAnalyzer:
         
         # LFP should have 3.65V max
         lfp = Cell.preset("LFP_5AH")
-        v_min_lfp, v_max_lfp = analyzer._get_voltage_bounds(lfp.chemistry)
+        v_min_lfp, v_max_lfp = analyzer._get_voltage_bounds(lfp)
         assert v_max_lfp == 3.65
         
         # NMC should have 4.2V max
         nmc = Cell.preset("NMC_5AH")
-        v_min_nmc, v_max_nmc = analyzer._get_voltage_bounds(nmc.chemistry)
+        v_min_nmc, v_max_nmc = analyzer._get_voltage_bounds(nmc)
         assert v_max_nmc == 4.2
 
     def test_different_chemistries_have_different_windows(self):

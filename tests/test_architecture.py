@@ -26,6 +26,12 @@ import pytest
 # ---------------------------------------------------------------------------
 
 CORE_DIR = Path(__file__).resolve().parent.parent / "core"
+INTERFACE_DIR = Path(__file__).resolve().parent.parent / "interface"
+PYBAMM_BACKEND = Path(__file__).resolve().parent.parent / "backend" / "pybamm_backend.py"
+APPLICATION_SERVICES_SHIM = CORE_DIR / "application_services.py"
+INVESTIGATION_TOOLS = CORE_DIR / "investigation_tools.py"
+PARAMETER_SWEEP_FACADE = CORE_DIR / "parameter_sweep.py"
+AGENT_API_FACADE = CORE_DIR / "agent_api.py"
 
 
 def _core_python_files():
@@ -95,6 +101,166 @@ class TestNoCoreBackendImports:
                 for name, v in all_violations.items()
             )
         )
+
+
+class TestInterfaceDependsOnPorts:
+    """Extracted interface handlers must not select concrete backends."""
+
+    def test_interface_does_not_import_backend_implementations(self):
+        violations = []
+        for filepath in sorted(INTERFACE_DIR.glob("*.py")):
+            tree = ast.parse(filepath.read_text())
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.module:
+                    if node.module.startswith("battery_sim.backend"):
+                        violations.append(f"{filepath.name}:{node.lineno}")
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if alias.name.startswith("battery_sim.backend"):
+                            violations.append(f"{filepath.name}:{node.lineno}")
+
+        assert not violations, (
+            "Interface handlers must receive SimulationBackend through the core port: "
+            + ", ".join(violations)
+        )
+
+
+class TestPyBaMMBackendResponsibilities:
+    """Signal extraction must remain outside the backend orchestrator."""
+
+    def test_result_extraction_delegates_to_focused_component(self):
+        from battery_sim.backend.pybamm_backend import PyBaMMBackend
+
+        source = inspect.getsource(PyBaMMBackend._extract_result)
+
+        assert "PyBaMMResultExtractor" in source
+        assert len(source.splitlines()) <= 5
+
+    def test_problem_construction_delegates_to_focused_component(self):
+        from battery_sim.backend.pybamm_backend import PyBaMMBackend
+
+        source = inspect.getsource(PyBaMMBackend._execute_simulation)
+
+        assert "PyBaMMProblemBuilder" in source
+        assert "build_model(" not in source
+        assert "build_parameters(" not in source
+
+    def test_observability_delegates_to_focused_component(self):
+        from battery_sim.backend.pybamm_backend import PyBaMMBackend
+
+        source = inspect.getsource(PyBaMMBackend._build_observability_data)
+
+        assert "PyBaMMObservabilityBuilder" in source
+
+    def test_backend_stays_a_small_orchestrator(self):
+        source = PYBAMM_BACKEND.read_text()
+
+        assert len(source.splitlines()) <= 150
+
+
+class TestFocusedApplicationServices:
+    """Keep the old module as compatibility only and use focused services internally."""
+
+    def test_legacy_application_services_module_defines_no_classes(self):
+        tree = ast.parse(APPLICATION_SERVICES_SHIM.read_text())
+
+        class_names = [node.name for node in tree.body if isinstance(node, ast.ClassDef)]
+
+        assert class_names == []
+
+    def test_active_code_does_not_import_legacy_services_module(self):
+        violations = []
+        source_files = [
+            *CORE_DIR.glob("*.py"),
+            *INTERFACE_DIR.glob("*.py"),
+        ]
+        for filepath in source_files:
+            if filepath == APPLICATION_SERVICES_SHIM:
+                continue
+            tree = ast.parse(filepath.read_text())
+            for node in ast.walk(tree):
+                if (
+                    isinstance(node, ast.ImportFrom)
+                    and node.module == "battery_sim.core.application_services"
+                ):
+                    violations.append(f"{filepath.name}:{node.lineno}")
+
+        assert not violations, (
+            "Active code must import focused battery_sim.core.services modules: "
+            + ", ".join(violations)
+        )
+
+    def test_investigation_compatibility_module_stays_small(self):
+        assert len(INVESTIGATION_TOOLS.read_text().splitlines()) <= 350
+
+    def test_typed_parameter_sweep_facade_stays_small(self):
+        assert len(PARAMETER_SWEEP_FACADE.read_text().splitlines()) <= 220
+
+    def test_agent_api_facade_does_not_regrow(self):
+        assert len(AGENT_API_FACADE.read_text().splitlines()) <= 700
+
+    def test_discovery_methods_delegate_to_focused_handler(self):
+        from battery_sim.core.agent_api import AgentAPI
+
+        catalog_source = inspect.getsource(AgentAPI.get_available_tools)
+        description_source = inspect.getsource(AgentAPI.describe_api)
+
+        assert "discover_agent_tools" in catalog_source
+        assert "self._discovery_tools" in description_source
+
+
+class TestExperimentalToolExtraction:
+    """Extracted experimental methods must stay thin compatibility delegates."""
+
+    @pytest.mark.parametrize("method_name", ["predict_lifetime", "warranty_analysis"])
+    def test_degradation_methods_delegate_to_handler(self, method_name):
+        from battery_sim.core.agent_api import AgentAPI
+
+        source = inspect.getsource(getattr(AgentAPI, method_name))
+
+        assert "self._degradation_tools" in source
+        assert len(source.splitlines()) <= 25
+
+    @pytest.mark.parametrize(
+        "method_name",
+        ["pack_sizing", "cell_selection_wizard", "estimate_range"],
+    )
+    def test_vehicle_methods_delegate_to_handler(self, method_name):
+        from battery_sim.core.agent_api import AgentAPI
+
+        source = inspect.getsource(getattr(AgentAPI, method_name))
+
+        assert "self._vehicle_tools" in source
+        assert len(source.splitlines()) <= 35
+
+    def test_model_to_test_method_delegates_to_handler(self):
+        from battery_sim.core.agent_api import AgentAPI
+
+        source = inspect.getsource(AgentAPI.compare_test_data)
+
+        assert "self._test_comparison_tools" in source
+        assert len(source.splitlines()) <= 40
+
+    @pytest.mark.parametrize(
+        "method_name",
+        ["optimize_charging", "compare_charging_strategies"],
+    )
+    def test_charging_methods_delegate_to_handler(self, method_name):
+        from battery_sim.core.agent_api import AgentAPI
+
+        source = inspect.getsource(getattr(AgentAPI, method_name))
+
+        assert "self._charging_tools" in source
+        assert len(source.splitlines()) <= 35
+
+    @pytest.mark.parametrize("method_name", ["operating_window", "derating_curves"])
+    def test_operating_methods_delegate_to_handler(self, method_name):
+        from battery_sim.core.agent_api import AgentAPI
+
+        source = inspect.getsource(getattr(AgentAPI, method_name))
+
+        assert "self._operating_tools" in source
+        assert len(source.splitlines()) <= 35
 
 
 # ---------------------------------------------------------------------------
@@ -195,3 +361,40 @@ class TestSignalVocabularyConsistency:
                 assert defn.unit, (
                     f"Schema signal '{name}' is not in Signal enum and has no unit"
                 )
+
+    def test_backend_and_schema_units_match(self):
+        """Runtime extraction units must agree with the public signal catalog."""
+        from battery_sim.backend.pybamm_signal import (
+            DERIVED_SIGNALS,
+            PYBAMM_SIGNAL_MAP,
+        )
+        from battery_sim.core.api_schema import APISchema
+        from battery_sim.types.signal import Signal
+
+        catalog = APISchema().get_signals().signals
+        runtime_units = {
+            signal: definition[1]
+            for signal, definition in {**PYBAMM_SIGNAL_MAP, **DERIVED_SIGNALS}.items()
+        }
+        # SOC is read dimensionless from PyBaMM and explicitly converted to %
+        # by PyBaMMBackend before constructing the TimeSeries.
+        runtime_units[Signal.SOC] = "%"
+
+        mismatches = {
+            signal.value: (unit, catalog[signal.value].unit)
+            for signal, unit in runtime_units.items()
+            if unit != catalog[signal.value].unit
+        }
+        assert mismatches == {}
+
+
+class TestToolDiscoverySingleSource:
+    """APISchema must not maintain a second manual operation catalog."""
+
+    def test_api_schema_contains_only_scientific_domain_metadata(self):
+        from battery_sim.core.api_schema import APISchema
+
+        schema = APISchema()
+
+        assert not hasattr(schema, "get_tools")
+        assert "tools" not in schema.to_dict()

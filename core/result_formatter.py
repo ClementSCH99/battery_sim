@@ -283,7 +283,7 @@ class ComparisonFormatter:
     def format_comparison_with_ev(
         scenarios: List[str],
         metrics_dict: Dict[str, Any],
-        ev_metrics: Optional[Dict[str, Dict[str, float]]] = None,
+        ev_metrics: Optional[Dict[str, Dict[str, Any]]] = None,
         ragone_data: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> DualFormatResult:
         """
@@ -366,43 +366,46 @@ class ComparisonFormatter:
             # Gravimetric energy density
             row = "| Gravimetric Energy Density (Wh/kg) |"
             for scenario in scenarios:
-                val = ev_metrics.get(scenario, {}).get('energy_density_Wh_per_kg', 0)
-                row += f" {val:.1f} |"
+                val = ev_metrics.get(scenario, {}).get('energy_density_Wh_per_kg')
+                row += f" {ComparisonFormatter._format_optional_number(val, '.1f')} |"
             md_lines.append(row)
             
             # Volumetric energy density
             row = "| Volumetric Energy Density (Wh/L) |"
             for scenario in scenarios:
-                val = ev_metrics.get(scenario, {}).get('energy_density_Wh_per_L', 0)
-                row += f" {val:.1f} |"
+                val = ev_metrics.get(scenario, {}).get('energy_density_Wh_per_L')
+                row += f" {ComparisonFormatter._format_optional_number(val, '.1f')} |"
             md_lines.append(row)
             
             # Cost per kWh
             row = "| Cost per kWh ($/kWh) |"
             for scenario in scenarios:
-                val = ev_metrics.get(scenario, {}).get('cost_per_kWh', 0)
-                row += f" ${val:.2f} |"
+                val = ev_metrics.get(scenario, {}).get('cost_per_kWh')
+                formatted = ComparisonFormatter._format_optional_number(val, '.2f')
+                row += f" {'$' + formatted if val is not None else formatted} |"
             md_lines.append(row)
             
             # Max charge C-rate
             row = "| Max Charge C-Rate |"
             for scenario in scenarios:
-                val = ev_metrics.get(scenario, {}).get('max_charge_c_rate', 0)
-                row += f" {val:.1f}C |"
+                val = ev_metrics.get(scenario, {}).get('max_charge_c_rate')
+                formatted = ComparisonFormatter._format_optional_number(val, '.1f')
+                row += f" {formatted + 'C' if val is not None else formatted} |"
             md_lines.append(row)
             
             # Max discharge C-rate
             row = "| Max Discharge C-Rate |"
             for scenario in scenarios:
-                val = ev_metrics.get(scenario, {}).get('max_discharge_c_rate', 0)
-                row += f" {val:.1f}C |"
+                val = ev_metrics.get(scenario, {}).get('max_discharge_c_rate')
+                formatted = ComparisonFormatter._format_optional_number(val, '.1f')
+                row += f" {formatted + 'C' if val is not None else formatted} |"
             md_lines.append(row)
             
             # Cycle life
             row = "| Cycle Life (cycles) |"
             for scenario in scenarios:
-                val = ev_metrics.get(scenario, {}).get('cycle_life_cycles', 0)
-                row += f" {int(val)} |"
+                val = ev_metrics.get(scenario, {}).get('cycle_life_cycles')
+                row += f" {ComparisonFormatter._format_optional_number(val, '.0f')} |"
             md_lines.append(row)
             
             md_lines.append("")
@@ -417,9 +420,11 @@ class ComparisonFormatter:
             ])
             
             for scenario in scenarios:
-                data = ragone_data.get(scenario, {})
-                energy = data.get('energy_density_Wh_per_kg', 0)
-                power = data.get('power_density_W_per_kg', 0)
+                if scenario not in ragone_data:
+                    continue
+                data = ragone_data[scenario]
+                energy = data['energy_density_Wh_per_kg']
+                power = data['power_density_W_per_kg']
                 md_lines.append(f"| {scenario} | {energy:.1f} | {power:.0f} |")
             
             md_lines.extend([
@@ -482,7 +487,7 @@ class ComparisonFormatter:
     @staticmethod
     def _compute_best_for(
         metrics_dict: Dict[str, Any],
-        ev_metrics: Optional[Dict[str, Dict[str, float]]] = None,
+        ev_metrics: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Dict[str, str]:
         """
         Compute which preset wins on each metric.
@@ -506,45 +511,57 @@ class ComparisonFormatter:
         if ev_metrics:
             # Energy density (higher is better)
             energy_density_vals = {
-                s: d.get('energy_density_Wh_per_kg', 0) 
+                s: d['energy_density_Wh_per_kg']
                 for s, d in ev_metrics.items()
+                if d.get('energy_density_Wh_per_kg') is not None
             }
             if energy_density_vals:
                 best_for['Gravimetric Energy Density'] = max(energy_density_vals, key=energy_density_vals.get)
             
             # Volumetric energy density (higher is better)
             volumetric_vals = {
-                s: d.get('energy_density_Wh_per_L', 0) 
+                s: d['energy_density_Wh_per_L']
                 for s, d in ev_metrics.items()
+                if d.get('energy_density_Wh_per_L') is not None
             }
             if volumetric_vals:
                 best_for['Volumetric Energy Density'] = max(volumetric_vals, key=volumetric_vals.get)
             
             # Cost per kWh (lower is better)
             cost_vals = {
-                s: d.get('cost_per_kWh', float('inf')) 
+                s: d['cost_per_kWh']
                 for s, d in ev_metrics.items()
+                if d.get('cost_per_kWh') is not None
             }
             if cost_vals:
                 best_for['Cost per kWh'] = min(cost_vals, key=cost_vals.get)
             
             # Discharge power (higher is better)
             discharge_vals = {
-                s: d.get('max_discharge_c_rate', 0) 
+                s: d['max_discharge_c_rate']
                 for s, d in ev_metrics.items()
+                if d.get('max_discharge_c_rate') is not None
             }
             if discharge_vals:
                 best_for['Power Delivery'] = max(discharge_vals, key=discharge_vals.get)
             
             # Cycle life (higher is better)
             cycle_vals = {
-                s: d.get('cycle_life_cycles', 0) 
+                s: d['cycle_life_cycles']
                 for s, d in ev_metrics.items()
+                if d.get('cycle_life_cycles') is not None
             }
             if cycle_vals:
                 best_for['Cycle Life'] = max(cycle_vals, key=cycle_vals.get)
         
         return best_for
+
+    @staticmethod
+    def _format_optional_number(value: Any, format_spec: str) -> str:
+        """Render absent assumption data without turning it into a physical zero."""
+        if value is None:
+            return "N/A"
+        return format(value, format_spec)
     
     @staticmethod
     def _extract_insights(json_data: Dict[str, Any]) -> List[str]:

@@ -29,6 +29,7 @@ from battery_sim.core.application_services import (
     SensitivityService,
     SimulationExecutionService,
 )
+from battery_sim.core import services as focused_services
 from battery_sim.core.cell import Cell
 from battery_sim.core.convergence_diagnostics import ConvergenceDiagnostics
 from battery_sim.core.environment import Environment
@@ -43,6 +44,15 @@ from battery_sim.core.simulation_metadata import SimulationMetadata
 from battery_sim.core.simulation_run import SimulationRun
 from battery_sim.core.simulation_backend import SimulationBackend
 from battery_sim.core.solver import SolverConfig
+
+
+def test_legacy_service_imports_are_identity_compatible():
+    """Existing callers keep working while internal code uses focused modules."""
+    assert SimulationExecutionService is focused_services.SimulationExecutionService
+    assert BatchExecutionService is focused_services.BatchExecutionService
+    assert ParameterSweepService is focused_services.ParameterSweepService
+    assert ComparisonService is focused_services.ComparisonService
+    assert SensitivityService is focused_services.SensitivityService
 
 
 # ---------------------------------------------------------------------------
@@ -423,3 +433,26 @@ class TestServiceErrorPropagation:
         status_values = comparison["metrics"]["status"]["values"]
         assert status_values["ok"] == "succeeded"
         assert status_values["bad"] == "failed"
+
+
+class TestTypedParameterSweepFacade:
+    """Fast contract for the legacy typed facade over the canonical service."""
+
+    def test_cell_sweep_preserves_typed_override(self, baseline_simulation):
+        sweep = ParameterSweep(_SelectiveFailureBackend())
+
+        results = sweep.sweep_cell_parameter(
+            baseline_simulation,
+            "nominal_capacity_Ah",
+            [3.0, 4.0],
+        )
+
+        assert [result.parameter_value for result in results] == [3.0, 4.0]
+        assert all(isinstance(result, SweepResult) for result in results)
+        assert results[0].override.cell_parameters == {"nominal_capacity_Ah": 3.0}
+        assert results[0].override.environment_parameters == {}
+
+    def test_empty_sensitivity_input_returns_explicit_error(self):
+        result = ParameterSweep.analyze_sensitivity([], lambda run: 1.0)
+
+        assert result["error"] == "No sweep results provided"

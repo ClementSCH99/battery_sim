@@ -10,12 +10,14 @@ PYBAMM_SIGNAL_MAP = {
     Signal.VOLTAGE: ("Terminal voltage [V]", "V"),
     Signal.CURRENT: ("Current [A]", "A"),
     Signal.SOC: ("State of charge", "-"),  # Will try alternatives if not found
-    Signal.TEMPERATURE: ("Cell temperature [K]", "K"),
+    # PyBaMM exposes kelvin; PyBaMMBackend converts both canonical thermal
+    # signals to degrees Celsius before constructing TimeSeries.
+    Signal.TEMPERATURE: ("Cell temperature [K]", "°C"),
     Signal.HEAT_GENERATION: ("Total heat generation [W]", "W"),
     Signal.IRREVERSIBLE_HEAT: ("Irreversible electrochemical heating [W.m-3]", "W/m³"),
     Signal.REVERSIBLE_HEAT: ("Reversible heating [W.m-3]", "W/m³"),
     Signal.OHMIC_HEAT: ("Ohmic heating [W.m-3]", "W/m³"),
-    Signal.CELL_TEMPERATURE: ("X-averaged cell temperature [K]", "K"),
+    Signal.CELL_TEMPERATURE: ("X-averaged cell temperature [K]", "°C"),
     
     # Internal states (DFN model specifics)
     Signal.ANODE_POTENTIAL: ("Negative electrode potential [V]", "V"),

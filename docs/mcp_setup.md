@@ -80,14 +80,29 @@ Restart Claude Desktop. The tools will appear in the tool picker.
 
 | Tool | Description | Key Parameters |
 |------|-------------|----------------|
+| `describe_api` | Discover tools, maturity levels and scientific vocabulary | *(none)* |
+| `plan_experiment` | Propose a model, protocol, signals and explicit assumptions without execution | `question`, optional preset, investigation, model, temperature and signals |
+| `compare_test_data` | Compare a CC-discharge simulation with sourced voltage/current samples | preset, source, time, voltage, applied current, optional measured current and RMSE limit |
 | `list_presets` | List available cell chemistry presets | `chemistry` (optional, e.g. `"LFP"`) |
 | `run_simulation` | Run a single simulation and return metrics | `preset_name` (required), `current_A`, `duration_s`, `temperature_C` |
 | `compare_presets` | Side-by-side comparison of multiple presets | `preset_names` (required, list), `environment_temp_C` |
 | `sensitivity_analysis` | Measure parameter sensitivity | `preset_name` (required), `parameters` (required, list of `"temperature_C"`, `"nominal_capacity_Ah"`, `"internal_resistance_Ohm"`) |
 | `check_feasibility` | Check physical feasibility of a configuration | `preset_name` (required), `temperature_C` |
 | `get_session_summary` | Summarise the current investigation session | *(none)* |
+| `predict_lifetime` | Screen an unvalidated linear ageing extrapolation | `preset_name`, `usage_profile`, `n_representative_cycles` |
+| `warranty_analysis` | Screen a warranty target with the ageing extrapolation | `preset_name`, warranty target, `usage_profile` |
+| `optimize_charging` | Screen CC-CV charge duration over candidate currents | `preset_name`, current range, `n_points` |
+| `operating_window` | Screen short pulses over SOC, temperature and C-rate | `preset_name`, `grid_size` |
+| `derating_curves` | Extract exploratory cell-level derating samples | `preset_name`, `grid_size` |
+| `estimate_range` | Integrate a synthetic pack-power trace | `preset_name`, `pack_energy_kWh`, `cycle_name` |
+| `compare_charging_strategies` | Compare predefined simulated charging protocols | `preset_name`, `strategy_names`, `n_cycles` |
+| `pack_sizing` | Calculate an ideal nominal pack topology | `preset_name`, energy and voltage targets |
+| `cell_selection_wizard` | Rank presets with explicitly assumed system inputs | range, power, mass, life, volume and cost targets |
 
-All tools return JSON strings.
+All tools return JSON objects over MCP. Each response includes the stable tool
+name, its `core` or `experimental` maturity, its domain of validity and explicit
+assumptions. Experimental tools are retained for compatibility and must be
+treated as exploratory screening, not validated engineering evidence.
 
 ---
 

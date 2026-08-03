@@ -179,7 +179,8 @@ class ErrorDetector:
     def detect_voltage_violations(
         result,
         min_voltage_v: float = 2.5,
-        max_voltage_v: float = 4.2
+        max_voltage_v: float = 4.2,
+        numerical_tolerance_v: float = 1e-5,
     ) -> list[SimulationError]:
         """
         Detect voltage out-of-bounds violations.
@@ -203,8 +204,16 @@ class ErrorDetector:
         voltage_values = voltage_data.values
         time_values = voltage_data.time_s
         
-        low_indices = [index for index, value in enumerate(voltage_values) if value < min_voltage_v]
-        high_indices = [index for index, value in enumerate(voltage_values) if value > max_voltage_v]
+        low_indices = [
+            index
+            for index, value in enumerate(voltage_values)
+            if value < min_voltage_v - numerical_tolerance_v
+        ]
+        high_indices = [
+            index
+            for index, value in enumerate(voltage_values)
+            if value > max_voltage_v + numerical_tolerance_v
+        ]
 
         if low_indices:
             first_index = low_indices[0]
@@ -321,8 +330,19 @@ class ErrorDetector:
         """
         errors = []
         
-        # Check voltage bounds
-        errors.extend(ErrorDetector.detect_voltage_violations(result))
+        # Use the selected cell's declared operating window when available.
+        min_voltage_v = 2.5
+        max_voltage_v = 4.2
+        if cell is not None:
+            min_voltage_v = float(cell.metadata.get("min_voltage_v", min_voltage_v))
+            max_voltage_v = float(cell.metadata.get("max_voltage_v", max_voltage_v))
+        errors.extend(
+            ErrorDetector.detect_voltage_violations(
+                result,
+                min_voltage_v=min_voltage_v,
+                max_voltage_v=max_voltage_v,
+            )
+        )
         
         # Check for numerical issues
         errors.extend(ErrorDetector.detect_numerical_issues(result))

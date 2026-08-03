@@ -58,13 +58,7 @@ class TestSingleSimulation:
         assert isinstance(result, SimulationRun), (
             f"Expected SimulationRun, got {type(result).__name__}"
         )
-        # The solver itself must have succeeded (metadata.success).
-        # We don't check is_successful() because the observability layer may
-        # flag NaN in derived signals like internal_resistance — a known
-        # PyBaMM limitation, not a simulation failure.
-        assert result.metadata.success, (
-            "PyBaMM solver did not report success"
-        )
+        assert result.is_successful(), "PyBaMM run should have no critical errors"
         assert len(result.available_signals()) > 0, (
             "SimulationRun should expose at least one signal"
         )
@@ -230,14 +224,14 @@ class TestCycling:
 class TestDegradation:
     """Degradation sub-models produce additional signals during cycling."""
 
-    def test_lfp_sei_degradation_3_cycles(self, backend):
-        """Run 3 cycles with SEI degradation and check capacity fade signals."""
+    def test_okane_sei_degradation_3_cycles(self, backend):
+        """Run 3 cycles with the degradation-oriented OKane2022 parameter set."""
         from battery_sim.core.degradation import DegradationConfig
 
-        cell = Cell.preset("LFP_5AH")
+        cell = Cell.preset("NMC_OKANE_AGING")
         charge = Protocol.cccv(
             charge_current_A=2.0,
-            cutoff_voltage_V=3.65,
+            cutoff_voltage_V=4.2,
             taper_current_A=0.1,
         )
         discharge = Protocol.cc(current_A=5.0, duration_s=120)
@@ -291,8 +285,8 @@ class TestThermalCoupling:
     """Thermal-electrochemical coupling produces temperature and heat signals."""
 
     def test_lumped_thermal_produces_temperature_rise(self, backend):
-        """LFP_5AH CC discharge with lumped thermal shows temperature > initial."""
-        cell = Cell.preset("LFP_5AH")
+        """Chen2020 NMC CC discharge with lumped thermal shows a temperature rise."""
+        cell = Cell.preset("NMC_CHEN_LGM50")
         protocol = Protocol(steps=[
             ConstantCurrent(current_A=1.0, _duration_s=60),
         ])
@@ -314,6 +308,7 @@ class TestThermalCoupling:
 
         cell_temp = run.result._data.get(Signal.CELL_TEMPERATURE)
         assert cell_temp is not None, "CELL_TEMPERATURE signal missing"
+        assert cell_temp.unit == "°C"
         assert max(cell_temp.values) > 25.0, (
             "Cell temperature should rise above initial 25 °C"
         )
@@ -326,7 +321,7 @@ class TestThermalCoupling:
 
     def test_isothermal_vs_thermal_voltage_differs(self, backend):
         """Isothermal and lumped-thermal produce different voltage curves."""
-        cell = Cell.preset("LFP_5AH")
+        cell = Cell.preset("NMC_CHEN_LGM50")
         protocol = Protocol(steps=[
             ConstantCurrent(current_A=1.0, _duration_s=60),
         ])
@@ -501,10 +496,10 @@ class TestAdvancedDegradation:
         """Explicit sei_model='ec reaction limited' works the same as sei_growth=True."""
         from battery_sim.core.degradation import DegradationConfig
 
-        cell = Cell.preset("LFP_5AH")
+        cell = Cell.preset("NMC_OKANE_AGING")
         charge = Protocol.cccv(
             charge_current_A=2.0,
-            cutoff_voltage_V=3.65,
+            cutoff_voltage_V=4.2,
             taper_current_A=0.1,
         )
         discharge = Protocol.cc(current_A=5.0, duration_s=120)
@@ -531,10 +526,10 @@ class TestAdvancedDegradation:
         """Explicit sei_model='reaction limited' works on SPMe model."""
         from battery_sim.core.degradation import DegradationConfig
 
-        cell = Cell.preset("LFP_5AH")
+        cell = Cell.preset("NMC_OKANE_AGING")
         charge = Protocol.cccv(
             charge_current_A=2.0,
-            cutoff_voltage_V=3.65,
+            cutoff_voltage_V=4.2,
             taper_current_A=0.1,
         )
         discharge = Protocol.cc(current_A=5.0, duration_s=120)

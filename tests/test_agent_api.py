@@ -23,12 +23,86 @@ Coverage map:
   session tracking     → investigation_history grows after each tool call
 """
 import pytest
+from unittest.mock import Mock
 
 from battery_sim.core.agent_api import AgentAPI
 from battery_sim.core.model import Model
 from battery_sim.core.protocol import Protocol, ConstantCurrent
 from battery_sim.core.result_formatter import DualFormatResult
 from battery_sim.core.solver import SolverConfig
+from battery_sim.core.simulation_backend import SimulationBackend
+
+
+class TestAgentAPIComposition:
+    """The interface is discoverable and its engine can be injected."""
+
+    def test_backend_can_be_injected(self):
+        backend = Mock(spec=SimulationBackend)
+
+        api = AgentAPI(backend=backend)
+
+        assert api._backend is backend
+        assert api.comparison_service.batch_service.execution_service.backend is backend
+        assert api.sensitivity_service.batch_service.execution_service.backend is backend
+
+    def test_available_tools_are_derived_from_decorated_methods(self):
+        api = AgentAPI(backend=Mock(spec=SimulationBackend))
+        discovered_names = {tool["name"] for tool in api.get_available_tools()}
+        decorated_names = {
+            name
+            for name, member in vars(AgentAPI).items()
+            if callable(member) and getattr(member, "_is_agent_tool", False)
+        }
+
+        assert discovered_names == decorated_names
+        assert len(discovered_names) == 18
+
+    def test_discovery_includes_signature_and_description(self):
+        api = AgentAPI(backend=Mock(spec=SimulationBackend))
+        tools = {tool["name"]: tool for tool in api.get_available_tools()}
+
+        run_simulation = tools["run_simulation"]
+        assert run_simulation["description"]
+        assert run_simulation["parameters"]["preset_name"]["required"] is True
+        assert run_simulation["parameters"]["temperature_C"]["default"] == 25.0
+
+    def test_every_tool_has_an_explicit_supported_maturity(self):
+        api = AgentAPI(backend=Mock(spec=SimulationBackend))
+        tools = api.get_available_tools()
+
+        assert {tool["maturity"] for tool in tools} == {"core", "experimental"}
+        core_tools = {tool["name"] for tool in tools if tool["maturity"] == "core"}
+        assert core_tools == {
+            "describe_api",
+            "plan_experiment",
+            "compare_test_data",
+            "list_presets",
+            "compare_presets",
+            "sensitivity_analysis",
+            "check_feasibility",
+            "run_simulation",
+            "get_session_summary",
+        }
+
+    def test_discovery_lists_core_tools_before_experimental_tools(self):
+        api = AgentAPI(backend=Mock(spec=SimulationBackend))
+        maturities = [tool["maturity"] for tool in api.get_available_tools()]
+
+        first_experimental = maturities.index("experimental")
+        assert all(value == "core" for value in maturities[:first_experimental])
+        assert all(value == "experimental" for value in maturities[first_experimental:])
+
+    def test_api_description_publishes_the_recommended_core_workflow(self):
+        api = AgentAPI(backend=Mock(spec=SimulationBackend))
+
+        description = api.describe_api().json_data
+
+        assert description["default_tool_profile"] == "core_first"
+        assert description["recommended_workflow"][0] == "describe_api"
+        assert "run_simulation" in description["recommended_workflow"]
+        assert {
+            tool["maturity"] for tool in description["tools"]
+        } == {"core", "experimental"}
 
 
 # ---------------------------------------------------------------------------
@@ -222,7 +296,6 @@ class TestSessionTracking:
 # Range Estimation
 # ===========================================================================
 
-@pytest.mark.slow
 class TestRangeEstimation:
     """Range estimation for EV packs with different configurations."""
 
@@ -232,7 +305,7 @@ class TestRangeEstimation:
             preset_name="LFP_5AH",
             cycle_name="WLTP",
             n_series=96,
-            n_parallel=4,
+            n_parallel=40,
         )
 
         assert isinstance(result, DualFormatResult)
@@ -256,7 +329,7 @@ class TestRangeEstimation:
         assert "pack_configuration" in json_data
         pack_config = json_data["pack_configuration"]
         assert pack_config.get("n_series") == 96
-        assert pack_config.get("n_parallel") == 4
+        assert pack_config.get("n_parallel") == 40
         assert pack_config.get("pack_voltage_V") > 0
         assert pack_config.get("pack_capacity_Ah") > 0
         
@@ -275,21 +348,21 @@ class TestRangeEstimation:
 
     def test_estimate_range_with_different_pack_sizes(self, api):
         """Range calculation handles different pack configurations."""
-        # Small pack: 48S2P
+        # Smaller but power-capable pack: 96S20P
         small = api.estimate_range(
             preset_name="LFP_5AH",
-            n_series=48,
-            n_parallel=2,
-            peak_power_kW=50.0,  # Lower power to avoid solver issues
+            n_series=96,
+            n_parallel=20,
+            peak_power_kW=50.0,
         )
         small_range = small.json_data["range"]["estimated_range_km"]
         
-        # Medium pack: 96S4P
+        # Larger pack: 96S40P
         large = api.estimate_range(
             preset_name="LFP_5AH",
             n_series=96,
-            n_parallel=4,
-            peak_power_kW=50.0,  # Same power for fair comparison
+            n_parallel=40,
+            peak_power_kW=50.0,
         )
         large_range = large.json_data["range"]["estimated_range_km"]
         
@@ -309,7 +382,7 @@ class TestRangeEstimation:
             preset_name="LFP_5AH",
             cycle_name="WLTP",
             n_series=96,
-            n_parallel=4,
+            n_parallel=40,
             peak_power_kW=50.0,
         )
         
@@ -317,7 +390,7 @@ class TestRangeEstimation:
             preset_name="LFP_5AH",
             cycle_name="US06",
             n_series=96,
-            n_parallel=4,
+            n_parallel=40,
             peak_power_kW=50.0,
         )
         
@@ -348,7 +421,7 @@ class TestRangeEstimation:
         result = api.estimate_range(
             preset_name="LFP_5AH",
             n_series=96,
-            n_parallel=4,
+            n_parallel=40,
         )
         
         markdown = result.markdown_text

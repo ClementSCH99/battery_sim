@@ -68,6 +68,15 @@ class TestVoltageViolations:
         errors = ErrorDetector.detect_voltage_violations(r, min_voltage_v=2.5, max_voltage_v=4.2)
         assert len(errors) == 0
 
+    def test_sub_microvolt_solver_noise_at_cutoff_is_not_a_violation(self):
+        r = make_result(voltage_values=[4.2, 4.20000006], time_s=[0, 1])
+        errors = ErrorDetector.detect_voltage_violations(
+            r,
+            min_voltage_v=2.5,
+            max_voltage_v=4.2,
+        )
+        assert errors == []
+
     def test_no_voltage_signal_no_violations(self):
         """If voltage signal is absent, there's nothing to check."""
         r = make_result(current_values=[1.0, 2.0])
@@ -148,6 +157,17 @@ class TestDetectAll:
         types = {e.error_type for e in errors}
         assert ErrorType.NAN_DETECTED in types
         assert ErrorType.VOLTAGE_OUT_OF_BOUNDS in types
+
+    def test_cell_metadata_defines_voltage_window(self):
+        cell = Cell(
+            chemistry="TEST",
+            metadata={"min_voltage_v": "2.0", "max_voltage_v": "3.6"},
+        )
+        r = make_result(voltage_values=[3.7], time_s=[0])
+
+        errors = ErrorDetector.detect_all(r, cell=cell)
+
+        assert any(error.error_type == ErrorType.VOLTAGE_OUT_OF_BOUNDS for error in errors)
 
 
 # ============================================================================

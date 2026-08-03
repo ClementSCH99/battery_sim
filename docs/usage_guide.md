@@ -155,7 +155,7 @@ protocol = Protocol.cycle(
 ### Via the service layer
 
 ```python
-from battery_sim.core.application_services import ComparisonService
+from battery_sim.core.services import ComparisonService
 from battery_sim.core.investigation_tools import BatchSimulationConfig
 from battery_sim.core.protocol import Protocol, ConstantCurrent
 from battery_sim.core.environment import Environment
@@ -179,7 +179,7 @@ comparison = service.compare_presets(["LFP_5AH", "NMC_5AH", "NCA_5AH"], config)
 ### Via AgentAPI (higher-level, LLM-friendly)
 
 ```python
-from battery_sim.core.agent_api import AgentAPI
+from battery_sim.interface.agent_api import AgentAPI
 
 api = AgentAPI()
 result = api.compare_presets(["LFP_5AH", "NMC_5AH", "NCA_5AH"])
@@ -397,7 +397,7 @@ cap_loss = run.result._data.get(Signal.TOTAL_CAPACITY_LOSS)  # Total capacity lo
 You can also use `CyclingAnalyzer` for trend analysis:
 
 ```python
-from battery_sim.core.application_services import CyclingAnalyzer
+from battery_sim.core.services import CyclingAnalyzer
 
 fade = CyclingAnalyzer.capacity_fade_rate(run)      # Ah/cycle
 eol = CyclingAnalyzer.end_of_life_prediction(run)   # Cycle number at 80% capacity

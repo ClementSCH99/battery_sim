@@ -388,6 +388,23 @@ class TestRequirementsValidation:
         # No preset should meet impossible requirements
         meeting = [r for r in results if r.meets_requirements]
         assert len(meeting) == 0
+
+    def test_missing_packaging_data_is_not_treated_as_zero(self):
+        """A research preset with unknown mass/volume/cost cannot pass pack constraints."""
+        requirements = {
+            'weight_budget_kg': 500.0,
+            'volume_budget_L': 300.0,
+            'cost_budget_usd': 20000.0,
+        }
+
+        result = CellSelectionScorer.score(
+            requirements,
+            [CellPresets.LFP_PRADA_2P3AH],
+        )[0]
+
+        assert result.meets_requirements is False
+        assert result.energy_score == 0.0
+        assert result.cost_score == 0.0
     
     def test_realistic_requirements_at_least_one_meets(self):
         """Realistic requirements should have at least one cell meeting them."""

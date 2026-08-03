@@ -48,6 +48,9 @@ class ChargingStrategyMetrics:
     status: str = "ok"
     error: str = ""
     notes: str = ""
+    timing_observed: bool = True
+    energy_observed: bool = True
+    capacity_fade_observed: bool = True
 
 
 @dataclass
@@ -59,33 +62,54 @@ class ChargingStrategyComparison:
     strategies: List[ChargingStrategyMetrics]
     temperature_C: float
     n_cycles: int
+
+    def successful_strategies(self) -> List[ChargingStrategyMetrics]:
+        """Return only simulations that produced usable metrics."""
+        return [strategy for strategy in self.strategies if strategy.status == "ok"]
     
     def rank_by_speed(self) -> List[ChargingStrategyMetrics]:
         """Rank strategies by fastest charge time."""
-        return sorted(self.strategies, key=lambda s: s.charge_time_min)
+        return sorted(
+            [s for s in self.successful_strategies() if s.timing_observed],
+            key=lambda s: s.charge_time_min,
+        )
     
     def rank_by_efficiency(self) -> List[ChargingStrategyMetrics]:
         """Rank strategies by energy efficiency (highest to lowest)."""
-        return sorted(self.strategies, key=lambda s: s.energy_efficiency, reverse=True)
+        return sorted(
+            [s for s in self.successful_strategies() if s.energy_observed],
+            key=lambda s: s.energy_efficiency,
+            reverse=True,
+        )
     
     def rank_by_longevity(self) -> List[ChargingStrategyMetrics]:
         """Rank strategies by best cycle life (lowest capacity fade)."""
-        return sorted(self.strategies, key=lambda s: s.capacity_fade_per_cycle)
+        return sorted(
+            [s for s in self.successful_strategies() if s.capacity_fade_observed],
+            key=lambda s: s.capacity_fade_per_cycle,
+        )
     
     def rank_balanced(self) -> List[ChargingStrategyMetrics]:
         """Rank by balanced score: speed + efficiency + longevity."""
+        successful = [
+            strategy
+            for strategy in self.successful_strategies()
+            if strategy.timing_observed
+            and strategy.energy_observed
+            and strategy.capacity_fade_observed
+        ]
         scores = []
-        for s in self.strategies:
+        for s in successful:
             # Normalize each metric 0-1
             # Speed: fast is good (invert time, normalize to max)
-            charge_speeds = [x.charge_time_min for x in self.strategies]
+            charge_speeds = [x.charge_time_min for x in successful]
             speed_score = 1.0 - (s.charge_time_min / max(charge_speeds)) if max(charge_speeds) > 0 else 0.5
             
             # Efficiency: high is good
             efficiency_score = s.energy_efficiency
             
             # Longevity: low fade is good (invert fade, normalize to max)
-            fades = [x.capacity_fade_per_cycle for x in self.strategies]
+            fades = [x.capacity_fade_per_cycle for x in successful]
             longevity_score = 1.0 - (s.capacity_fade_per_cycle / max(fades)) if max(fades) > 0 else 0.5
             
             # Weighted average: 40% speed, 20% efficiency, 40% longevity
@@ -166,10 +190,10 @@ class ChargingStrategyBuilder:
         step_4_current = 0.5 * capacity
         
         steps = [
-            ConstantCurrent(current_A=step_1_current, _duration_s=60),    # 1 min at 2C
-            ConstantCurrent(current_A=step_2_current, _duration_s=120),   # 2 min at 1.5C
-            ConstantCurrent(current_A=step_3_current, _duration_s=180),   # 3 min at 1C
-            ConstantCurrent(current_A=step_4_current, _duration_s=600),   # 10 min at 0.5C (to ~full)
+            ConstantCurrent(current_A=-step_1_current, _duration_s=60),    # 1 min at 2C
+            ConstantCurrent(current_A=-step_2_current, _duration_s=120),   # 2 min at 1.5C
+            ConstantCurrent(current_A=-step_3_current, _duration_s=180),   # 3 min at 1C
+            ConstantCurrent(current_A=-step_4_current, _duration_s=600),   # 10 min at 0.5C (to ~full)
             Rest(_duration_s=600),  # Post-charge rest
         ]
         return Protocol(steps=steps)
@@ -188,7 +212,7 @@ class ChargingStrategyBuilder:
         steps = []
         # 3 pulse cycles
         for _ in range(3):
-            steps.append(ConstantCurrent(current_A=charge_current, _duration_s=300))  # 5 min pulse
+            steps.append(ConstantCurrent(current_A=-charge_current, _duration_s=300))  # 5 min pulse
             steps.append(Rest(_duration_s=30))  # 30s rest
         
         # Final gentle top-up with CC-CV
@@ -329,6 +353,9 @@ class ChargingStrategyEvaluator:
         final_temperature_C = environment.temperature_C
         final_capacity_Ah = nominal_capacity_Ah
         final_soh = 100.0
+        timing_observed = False
+        energy_observed = False
+        capacity_fade_observed = False
         
         if run and run.result:
             result = run.result
@@ -337,9 +364,16 @@ class ChargingStrategyEvaluator:
             # This is approximate: PyBaMM doesn't directly expose per-step times
             time_vector_fn = getattr(result, "time_vector", None)
             time_vector = time_vector_fn() if callable(time_vector_fn) else []
+            if not isinstance(time_vector, (list, tuple, np.ndarray)) or len(time_vector) == 0:
+                for signal in result.available_signals():
+                    series = result.get(signal)
+                    if series.time_s:
+                        time_vector = series.time_s
+                        break
             total_time_s = float(time_vector[-1]) if isinstance(time_vector, (list, tuple, np.ndarray)) and len(time_vector) > 0 else 0.0
             charge_time_min = (total_time_s / 2) / 60 if total_time_s > 0 else 0  # Rough estimate
             discharge_time_min = (total_time_s / 2) / 60 if total_time_s > 0 else 0
+            timing_observed = total_time_s > 0
             
             # Energy from voltage/current product (approximation)
             charge_energy_fn = getattr(result, "charge_energy", None)
@@ -347,12 +381,14 @@ class ChargingStrategyEvaluator:
                 charge_energy_value = charge_energy_fn()
                 if isinstance(charge_energy_value, (int, float, np.floating)):
                     charge_energy_Wh = float(charge_energy_value)
+                    energy_observed = True
 
             discharge_energy_fn = getattr(result, "discharge_energy", None)
             if callable(discharge_energy_fn):
                 discharge_energy_value = discharge_energy_fn()
                 if isinstance(discharge_energy_value, (int, float, np.floating)):
                     discharge_energy_Wh = float(discharge_energy_value)
+                    energy_observed = True
             
             # Capacity fade
             capacity_fade_fn = getattr(result, "capacity_fade", None)
@@ -362,6 +398,7 @@ class ChargingStrategyEvaluator:
                     capacity_fade_fraction = float(capacity_fade_value)
                     final_capacity_Ah = (1.0 - capacity_fade_fraction) * nominal_capacity_Ah
                     final_soh = (1.0 - capacity_fade_fraction) * 100.0
+                    capacity_fade_observed = True
             
             # Temperature
             max_temperature_fn = getattr(result, "max_temperature", None)
@@ -390,6 +427,9 @@ class ChargingStrategyEvaluator:
             status=status,
             error=failure_error,
             notes=failure_note,
+            timing_observed=timing_observed,
+            energy_observed=energy_observed,
+            capacity_fade_observed=capacity_fade_observed,
         )
     
     def compare(

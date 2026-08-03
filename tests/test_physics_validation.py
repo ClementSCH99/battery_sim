@@ -39,7 +39,9 @@ class TestEnergyConservation:
 
     def test_energy_conservation_thermal(self, backend):
         """In a thermal simulation, ∫P·dt must match the cumulative ENERGY signal."""
-        cell = Cell.preset("LFP_5AH")
+        # Chen2020 provides the cell-level thermal properties required by the
+        # lumped model; Prada2013 (our LFP reference) is isothermal-only.
+        cell = Cell.preset("NMC_CHEN_LGM50")
         protocol = Protocol(steps=[
             ConstantCurrent(current_A=1.0, _duration_s=120),
         ])
@@ -82,7 +84,7 @@ class TestEnergyConservation:
 
     def test_higher_crate_more_heat(self, backend):
         """Higher C-rate must produce more heat generation."""
-        cell = Cell.preset("LFP_5AH")
+        cell = Cell.preset("NMC_CHEN_LGM50")
         environment = Environment(
             temperature_C=25.0,
             thermal_model="lumped",

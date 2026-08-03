@@ -98,6 +98,9 @@ class TestMCPImport:
 # ===========================================================================
 
 EXPECTED_TOOLS = {
+    "describe_api",
+    "plan_experiment",
+    "compare_test_data",
     "list_presets",
     "run_simulation",
     "compare_presets",
@@ -319,6 +322,15 @@ class TestMCPBoundaryValidation:
         )
         self._assert_validation_error(raw_result, "grid_size")
 
+    def test_unimplemented_medium_grid_is_rejected_at_boundary(self):
+        from mcp_server import operating_window
+
+        raw_result = operating_window(
+            preset_name="LFP_5AH",
+            grid_size="medium",
+        )
+        self._assert_validation_error(raw_result, "grid_size")
+
     def test_invalid_cycle_name_returns_validation_error(self):
         from mcp_server import estimate_range
 
@@ -331,6 +343,140 @@ class TestMCPBoundaryValidation:
         assert payload["error_type"] == "ValidationError"
         assert "cycle_name" in payload["message"]
         assert "WLTP" in payload["message"]
+
+    def test_error_payload_has_stable_contract_metadata(self):
+        from mcp_server import optimize_charging
+
+        payload = json.loads(
+            optimize_charging(
+                preset_name="LFP_5AH",
+                charge_current_min_A=5.0,
+                charge_current_max_A=1.0,
+            )
+        )
+
+        assert payload["tool"] == "optimize_charging"
+        assert payload["maturity"] == "experimental"
+        assert payload["error_code"] == "validation_error"
+        assert payload["retryable"] is False
+        assert payload["contract"]["schema_version"] == "1.0"
+
+
+class TestMCPResponseContract:
+    def test_success_payload_includes_derived_maturity_and_domain(self):
+        from mcp_server import list_presets
+
+        payload = json.loads(list_presets())
+
+        assert payload["tool"] == "list_presets"
+        assert payload["maturity"] == "core"
+        assert payload["contract"]["maturity"] == "core"
+        assert payload["contract"]["domain_of_validity"]
+        assert payload["contract"]["assumptions"]
+
+    def test_error_payload_also_exposes_assumptions(self):
+        from mcp_server import run_simulation
+
+        payload = json.loads(run_simulation(preset_name="UNKNOWN"))
+
+        assert payload["error"] is True
+        assert payload["contract"]["assumptions"]
+
+    def test_session_summary_uses_the_same_json_contract(self):
+        from mcp_server import get_session_summary
+
+        payload = json.loads(get_session_summary())
+
+        assert payload["type"] == "session_summary"
+        assert isinstance(payload["summary"], str)
+        assert payload["contract"]["assumptions"]
+
+    def test_describe_api_is_exposed_as_core_discovery_tool(self):
+        from mcp_server import describe_api
+
+        payload = json.loads(describe_api())
+
+        assert payload["type"] == "api_description"
+        assert payload["tool"] == "describe_api"
+        assert payload["maturity"] == "core"
+        assert payload["default_tool_profile"] == "core_first"
+        assert payload["recommended_workflow"][0] == "describe_api"
+
+    def test_plan_experiment_exposes_missing_inputs_without_executing(self):
+        from mcp_server import plan_experiment
+
+        payload = json.loads(plan_experiment(question="Characterize voltage response"))
+
+        assert payload["type"] == "experiment_plan"
+        assert payload["status"] == "needs_input"
+        assert payload["ready_for_execution"] is False
+        assert "preset_name" in payload["missing_inputs"]
+        assert payload["tool"] == "plan_experiment"
+        assert payload["maturity"] == "core"
+
+    def test_plan_experiment_extracts_supported_question_fields_with_evidence(self):
+        from mcp_server import plan_experiment
+
+        payload = json.loads(
+            plan_experiment(
+                question=(
+                    "Simule une décharge de NMC_CHEN_LGM50 à -10 °C "
+                    "et donne la tension."
+                )
+            )
+        )
+
+        assert payload["status"] == "draft_ready"
+        assert payload["configuration"]["preset_name"] == "NMC_CHEN_LGM50"
+        assert payload["configuration"]["ambient_temperature_C"] == -10.0
+        evidence = payload["traceability"]["question_interpretation"]["fields"]
+        assert evidence["preset_name"]["evidence"] == "NMC_CHEN_LGM50"
+
+    def test_temperature_extracted_from_question_uses_boundary_validation(self):
+        from mcp_server import plan_experiment
+
+        payload = json.loads(
+            plan_experiment(
+                question="Décharge NMC_CHEN_LGM50 à 125 °C"
+            )
+        )
+
+        assert payload["error"] is True
+        assert payload["error_code"] == "validation_error"
+        assert "temperature_C" in payload["message"]
+
+    def test_test_comparison_rejects_misaligned_trace_at_boundary(self):
+        from mcp_server import compare_test_data
+
+        payload = json.loads(
+            compare_test_data(
+                preset_name="NMC_CHEN_LGM50",
+                source="cycler export",
+                time_s=[0.0, 1.0, 2.0],
+                voltage_V=[4.1, 4.0],
+                applied_current_A=5.0,
+            )
+        )
+
+        assert payload["error"] is True
+        assert payload["error_code"] == "validation_error"
+        assert "same length" in payload["message"]
+
+    def test_every_core_agent_tool_has_an_mcp_wrapper(self):
+        import mcp_server
+
+        core_names = {
+            tool["name"]
+            for tool in mcp_server.api.get_available_tools()
+            if tool["maturity"] == "core"
+        }
+        exposed = {
+            name
+            for name, value in vars(mcp_server).items()
+            if name in core_names and callable(value)
+        }
+
+        assert exposed == core_names
 
 
 # ===========================================================================
@@ -370,6 +516,7 @@ class TestRunSimulationRoundTrip:
         })
         assert data["type"] == "simulation_result"
         assert data["preset"] == "LFP_5AH"
+        assert data["simulation_id"]
         assert "metrics" in data
         assert isinstance(data["metrics"], dict)
         assert len(data["metrics"]) > 0
@@ -382,6 +529,36 @@ class TestRunSimulationRoundTrip:
         })
         assert data["temperature_C"] == 35.0
 
+
+@pytest.mark.slow
+class TestCompareTestDataRoundTrip:
+    """A sourced trace reaches PyBaMM and returns explicit residual evidence."""
+
+    def test_returns_model_to_test_comparison(self):
+        data = _call_tool(
+            "compare_test_data",
+            {
+                "preset_name": "NMC_CHEN_LGM50",
+                "source": "synthetic MCP integration fixture",
+                "test_id": "MCP-TRACE-001",
+                "time_s": [0.0, 5.0, 10.0],
+                "voltage_V": [4.18, 4.17, 4.16],
+                "applied_current_A": 5.0,
+                "measured_current_A": [-5.0, -5.0, -5.0],
+                "current_sign_convention": "discharge_negative",
+                "temperature_C": 25.0,
+            },
+        )
+
+        assert data["type"] == "test_comparison"
+        assert data["simulation_id"]
+        assert data["coverage"]["extrapolation_used"] is False
+        assert data["metrics"]["voltage_rmse_V"] >= 0
+        assert data["evidence"]["parameter_fitting_performed"] is False
+        assert data["assessment"]["confidence"] in {"low", "insufficient"}
+        assert data["assessment"]["decision_ready"] is False
+        assert data["assessment"]["next_experiments"]
+        assert data["contract"]["assumptions"]
 
 @pytest.mark.slow
 class TestCheckFeasibilityRoundTrip:
@@ -404,10 +581,10 @@ class TestCheckFeasibilityRoundTrip:
 
 @pytest.mark.slow
 class TestGetSessionSummaryRoundTrip:
-    """get_session_summary returns a string through MCP."""
+    """get_session_summary returns the shared JSON envelope through MCP."""
 
     def test_returns_string(self):
-        """Session summary is returned as text (not JSON-wrapped)."""
+        """Session summary remains text inside a machine-readable response."""
         from mcp_server import mcp
 
         async def _invoke():
@@ -415,7 +592,8 @@ class TestGetSessionSummaryRoundTrip:
 
         result = _run(_invoke())
         content_blocks = cast(list[Any], result[0] if isinstance(result, tuple) else result)
-        text = content_blocks[0].text
-        # Session summary is plain text / markdown, not necessarily JSON
-        assert isinstance(text, str)
-        assert len(text) > 0
+        payload = json.loads(content_blocks[0].text)
+        assert payload["type"] == "session_summary"
+        assert isinstance(payload["summary"], str)
+        assert payload["summary"]
+        assert payload["contract"]["assumptions"]

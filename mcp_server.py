@@ -1,13 +1,14 @@
 """MCP server exposing battery_sim tools via Model Context Protocol."""
 
 import json
+import math
 from dataclasses import fields
 from functools import lru_cache, wraps
 from typing import Any, Callable, Optional
 
 from mcp.server.fastmcp import FastMCP
 
-from battery_sim.core.agent_api import AgentAPI
+from battery_sim.interface.agent_api import AgentAPI
 from battery_sim.core.degradation import UsageProfile
 from battery_sim.core.drive_cycles import list_drive_cycles
 
@@ -16,17 +17,17 @@ api = AgentAPI()
 
 
 def _validate_temperature(temperature_C: float) -> None:
-    if temperature_C < -40.0 or temperature_C > 100.0:
+    if not math.isfinite(temperature_C) or temperature_C < -40.0 or temperature_C > 100.0:
         raise ValueError("temperature_C must be between -40 and 100")
 
 
 def _validate_positive(name: str, value: float) -> None:
-    if value <= 0:
+    if not math.isfinite(value) or value <= 0:
         raise ValueError(f"{name} must be > 0")
 
 
 def _validate_non_negative(name: str, value: float) -> None:
-    if value < 0:
+    if not math.isfinite(value) or value < 0:
         raise ValueError(f"{name} must be >= 0")
 
 
@@ -37,9 +38,24 @@ def _validate_string_list(name: str, values: list[str]) -> None:
         raise ValueError(f"{name} entries must be non-empty strings")
 
 
+def _validate_trace_lengths(
+    time_s: list[float],
+    voltage_V: list[float],
+    measured_current_A: list[float] | None,
+) -> None:
+    if len(time_s) < 2:
+        raise ValueError("time_s must contain at least two samples")
+    if len(time_s) > 2000:
+        raise ValueError("test trace is limited to 2000 samples")
+    if len(voltage_V) != len(time_s):
+        raise ValueError("voltage_V and time_s must have the same length")
+    if measured_current_A is not None and len(measured_current_A) != len(time_s):
+        raise ValueError("measured_current_A and time_s must have the same length")
+
+
 def _validate_grid_size(grid_size: str) -> None:
-    if grid_size not in {"coarse", "medium", "fine"}:
-        raise ValueError("grid_size must be one of: coarse, medium, fine")
+    if grid_size not in {"coarse", "fine"}:
+        raise ValueError("grid_size must be one of: coarse, fine")
 
 
 @lru_cache(maxsize=1)
@@ -92,18 +108,104 @@ def _validate_cycle_name(cycle_name: str) -> None:
         )
 
 
+@lru_cache(maxsize=1)
+def _tool_maturity() -> dict[str, str]:
+    """Derive MCP maturity from the executable AgentAPI catalog."""
+    return {
+        tool["name"]: tool["maturity"]
+        for tool in api.get_available_tools()
+    }
+
+
+def _response_assumptions(
+    tool_name: str,
+    payload: Optional[dict[str, Any]] = None,
+) -> list[Any]:
+    """Return explicit assumptions without duplicating tool implementation logic."""
+    assumptions: list[Any] = []
+    declared = payload.get("assumptions") if payload else None
+    if isinstance(declared, list):
+        assumptions.extend(declared)
+    elif declared:
+        assumptions.append(declared)
+
+    defaults = {
+        "describe_api": "Tool availability and core maturity do not imply experimental validation.",
+        "list_presets": "Preset catalog values are modelling inputs, not cell datasheet guarantees.",
+        "get_session_summary": "The summary contains only operations recorded in the current in-memory session.",
+        "check_feasibility": "Constraint screening is not a cell-safety or qualification assessment.",
+    }
+    default = defaults.get(tool_name)
+    if default:
+        assumptions.append(default)
+    elif _tool_maturity().get(tool_name, "experimental") == "core":
+        assumptions.extend(
+            [
+                "Cell-level results inherit the selected PyBaMM model and parameter-set assumptions.",
+                "No pack-level electrical or thermal interactions are represented unless explicitly stated.",
+            ]
+        )
+    else:
+        assumptions.append(
+            "This capability is exploratory screening and has not been validated as decision evidence."
+        )
+    return assumptions
+
+
+def _contract(tool_name: str, payload: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    maturity = _tool_maturity().get(tool_name, "experimental")
+    evidence = payload.get("evidence") if payload else None
+    scope = payload.get("scope") if payload else None
+    if isinstance(evidence, dict):
+        domain = evidence.get("validation_status") or evidence.get("status")
+    elif isinstance(evidence, str):
+        domain = evidence
+    else:
+        domain = None
+    if not domain:
+        domain = scope
+    if not domain:
+        domain = (
+            "cell-level investigation; inspect assumptions and result diagnostics"
+            if maturity == "core"
+            else "exploratory screening only; not validated decision evidence"
+        )
+    return {
+        "schema_version": "1.0",
+        "maturity": maturity,
+        "domain_of_validity": domain,
+        "assumptions": _response_assumptions(tool_name, payload),
+    }
+
+
 def _tool_error_boundary(func: Callable[..., str]) -> Callable[..., str]:
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> str:
         try:
-            return func(*args, **kwargs)
+            raw_result = func(*args, **kwargs)
+            try:
+                payload = json.loads(raw_result)
+            except (TypeError, json.JSONDecodeError):
+                return raw_result
+            if not isinstance(payload, dict):
+                return raw_result
+            payload.setdefault("tool", func.__name__)
+            payload.setdefault("maturity", _tool_maturity().get(func.__name__, "experimental"))
+            payload.setdefault("contract", _contract(func.__name__, payload))
+            return json.dumps(payload, indent=2, default=str)
         except Exception as exc:  # noqa: BLE001 - convert to MCP-safe error payload
             error_type = "ValidationError" if isinstance(exc, ValueError) else exc.__class__.__name__
+            error_code = "validation_error" if isinstance(exc, ValueError) else "execution_error"
             return json.dumps(
                 {
                     "error": True,
                     "error_type": error_type,
+                    "error_code": error_code,
                     "message": str(exc),
+                    "tool": func.__name__,
+                    "maturity": _tool_maturity().get(func.__name__, "experimental"),
+                    "retryable": False,
+                    "contract": _contract(func.__name__),
                 },
                 indent=2,
                 default=str,
@@ -115,6 +217,83 @@ def _tool_error_boundary(func: Callable[..., str]) -> Callable[..., str]:
 def _result_json(dual_format_result) -> str:
     """Serialize a DualFormatResult's json_data to a JSON string."""
     return json.dumps(dual_format_result.json_data, indent=2, default=str)
+
+
+@mcp.tool()
+@_tool_error_boundary
+def describe_api() -> str:
+    """Describe available battery_sim tools and the scientific vocabulary."""
+    return _result_json(api.describe_api())
+
+
+@mcp.tool()
+@_tool_error_boundary
+def plan_experiment(
+    question: str,
+    preset_name: str | None = None,
+    investigation_type: str | None = None,
+    model: str | None = None,
+    temperature_C: float | None = None,
+    requested_signals: list[str] | None = None,
+) -> str:
+    """Build a reviewable electrochemical experiment plan without running it."""
+    if not isinstance(question, str) or not question.strip():
+        raise ValueError("question must be a non-empty string")
+    if preset_name is not None:
+        _validate_preset(preset_name)
+    if temperature_C is not None:
+        _validate_temperature(temperature_C)
+    if requested_signals is not None:
+        _validate_string_list("requested_signals", requested_signals)
+    return _result_json(
+        api.plan_experiment(
+            question=question,
+            preset_name=preset_name,
+            investigation_type=investigation_type,
+            model=model,
+            temperature_C=temperature_C,
+            requested_signals=requested_signals,
+        )
+    )
+
+
+@mcp.tool()
+@_tool_error_boundary
+def compare_test_data(
+    preset_name: str,
+    source: str,
+    time_s: list[float],
+    voltage_V: list[float],
+    applied_current_A: float,
+    measured_current_A: list[float] | None = None,
+    current_sign_convention: str = "discharge_positive",
+    temperature_C: float = 25.0,
+    test_id: str | None = None,
+    voltage_rmse_limit_V: float | None = None,
+) -> str:
+    """Compare a CC-discharge simulation with a sourced cell-test trace."""
+    _validate_preset(preset_name)
+    if not isinstance(source, str) or not source.strip():
+        raise ValueError("source must identify the origin of the test data")
+    _validate_positive("applied_current_A", applied_current_A)
+    _validate_temperature(temperature_C)
+    _validate_trace_lengths(time_s, voltage_V, measured_current_A)
+    if voltage_rmse_limit_V is not None:
+        _validate_positive("voltage_rmse_limit_V", voltage_rmse_limit_V)
+    return _result_json(
+        api.compare_test_data(
+            preset_name=preset_name,
+            source=source,
+            time_s=time_s,
+            voltage_V=voltage_V,
+            applied_current_A=applied_current_A,
+            measured_current_A=measured_current_A,
+            current_sign_convention=current_sign_convention,
+            temperature_C=temperature_C,
+            test_id=test_id,
+            voltage_rmse_limit_V=voltage_rmse_limit_V,
+        )
+    )
 
 
 @mcp.tool()
@@ -184,6 +363,7 @@ def sensitivity_analysis(
     result = api.sensitivity_analysis(
         preset_name=preset_name,
         parameters=parameters,
+        temperature_C=temperature_C,
     )
     return _result_json(result)
 
@@ -213,10 +393,9 @@ def optimize_charging(
     n_sweep_points: int = 5,
     temperature_C: float = 25.0,
 ) -> str:
-    """Find optimal CC-CV charging parameters balancing speed vs aging.
-    
-    Sweeps through a range of charge currents to find the best trade-off
-    between charging speed and battery degradation (capacity fade).
+    """Screen single-charge CC-CV duration over an admissible current grid.
+
+    This experimental tool does not calculate aging, efficiency or plating.
     """
     _validate_preset(preset_name)
     _validate_positive("charge_current_min_A", charge_current_min_A)
@@ -305,7 +484,13 @@ def cell_selection_wizard(
 @_tool_error_boundary
 def get_session_summary() -> str:
     """Get a summary of the current investigation session."""
-    return api.get_session_summary()
+    return json.dumps(
+        {
+            "type": "session_summary",
+            "summary": api.get_session_summary(),
+        },
+        indent=2,
+    )
 
 
 @mcp.tool()
@@ -316,11 +501,11 @@ def predict_lifetime(
     n_representative_cycles: int = 50,
     temperature_C: float = 25.0,
 ) -> str:
-    """Predict battery lifetime using degradation modeling and usage patterns."""
+    """Experimentally extrapolate a short simulated aging trend; not test-validated."""
     _validate_preset(preset_name)
     _validate_usage_profile(usage_profile)
-    if n_representative_cycles < 1:
-        raise ValueError("n_representative_cycles must be >= 1")
+    if n_representative_cycles < 3:
+        raise ValueError("n_representative_cycles must be >= 3 for exploratory fitting")
     _validate_temperature(temperature_C)
     result = api.predict_lifetime(
         preset_name=preset_name,
@@ -341,7 +526,7 @@ def warranty_analysis(
     usage_profile: dict | None = None,
     temperature_C: float = 25.0,
 ) -> str:
-    """Evaluate if a battery cell meets warranty requirements."""
+    """Screen a warranty target using an unvalidated linear aging extrapolation."""
     _validate_preset(preset_name)
     _validate_usage_profile(usage_profile)
     _validate_positive("warranty_years", warranty_years)
@@ -366,10 +551,9 @@ def operating_window(
     preset_name: str,
     grid_size: str = "coarse",
 ) -> str:
-    """Map the safe operating window across SOC, temperature, and C-rate.
-    
-    Evaluates a grid of operating conditions and classifies each as
-    safe/caution/avoid, providing data for BMS power limiting strategies.
+    """Screen short cell-voltage pulses across SOC, temperature and C-rate.
+
+    Labels are exploratory and are not a cell-safety qualification.
     """
     _validate_preset(preset_name)
     _validate_grid_size(grid_size)
@@ -386,10 +570,9 @@ def derating_curves(
     preset_name: str,
     grid_size: str = "coarse",
 ) -> str:
-    """Extract derating curves for BMS lookup tables.
-    
-    Generates maximum C-rate curves as functions of temperature and SOC,
-    directly usable in production BMS firmware for power limiting.
+    """Derive candidate cell-level derating samples from voltage-pulse screens.
+
+    Outputs require test validation and are not production BMS lookup tables.
     """
     _validate_preset(preset_name)
     _validate_grid_size(grid_size)
@@ -406,15 +589,15 @@ def estimate_range(
     preset_name: str,
     cycle_name: str = "WLTP",
     n_series: int = 96,
-    n_parallel: int = 4,
+    n_parallel: int = 40,
     vehicle_mass_kg: float = 1800.0,
     peak_power_kW: float = 150.0,
     temperature_C: float = 25.0,
 ) -> str:
-    """Estimate EV range for a given cell preset and pack configuration.
-    
-    Simulates one drive cycle with the specified pack configuration,
-    measures energy consumption, and extrapolates to total range.
+    """Screen EV range for a cell preset and pack configuration.
+
+    Integrates a synthetic normalized pack-power trace. This tool does not run
+    an electrochemical simulation and is not a regulatory range prediction.
     
     Args:
         preset_name: Cell chemistry preset (e.g., 'LFP_5AH', 'NMC_5AH')
@@ -457,10 +640,9 @@ def compare_charging_strategies(
     n_cycles: int = 5,
     temperature_C: float = 25.0,
 ) -> str:
-    """Compare different charging strategies on the same cell.
-    
-    Evaluates multiple charging approaches (standard CC-CV, fast, gentle, multi-step, pulse)
-    through multiple charge-discharge cycles with degradation modeling.
+    """Experimentally compare charging protocols on the same cell.
+
+    Failed simulations are excluded and missing aging evidence remains null.
     
     Args:
         preset_name: Cell chemistry preset (e.g., 'LFP_5AH', 'NMC_5AH')
