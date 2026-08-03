@@ -25,9 +25,6 @@ MAX_MODULE_LINES = 300
 # Existing debt is frozen. Moving one of these files does not transfer its
 # exception: the target module must be split below MAX_MODULE_LINES.
 OVERSIZED_MODULE_BUDGETS = {
-    Path("interfaces/presenters/result.py"): 951,
-    Path("interfaces/python/schema.py"): 948,
-    Path("interfaces/python/tool_registry.py"): 700,
     Path("interfaces/python/vehicle_tools.py"): 549,
     Path("experimental/charging/strategies.py"): 476,
     Path("application/session.py"): 473,
