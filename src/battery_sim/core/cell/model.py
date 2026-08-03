@@ -1,10 +1,9 @@
-# battery_sim/core/cell.py
 from dataclasses import dataclass, field
 from battery_sim.core.exceptions import CellValidationError
 from typing import Optional, Dict, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from battery_sim.core.cell_presets import CellPresets
+    from battery_sim.core.cell.catalog import CellPresets
 
 
 @dataclass(frozen=True)
@@ -68,12 +67,12 @@ class Cell:
             5.0
         """
         # Lazy import to avoid circular dependency
-        from battery_sim.core.cell_presets import CellPresets
+        from battery_sim.core.cell.catalog import CellPresets
         return CellPresets.get_cell(preset_name)
 
     @classmethod
     def list_presets(cls) -> list[str]:
         """List all available cell presets."""
-        from battery_sim.core.cell_presets import CellPresets
+        from battery_sim.core.cell.catalog import CellPresets
         return CellPresets.list_all()
 

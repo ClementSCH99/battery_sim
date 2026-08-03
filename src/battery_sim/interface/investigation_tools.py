@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 from battery_sim.core.services import ComparisonService, SensitivityService
 from battery_sim.core.cell import Cell
-from battery_sim.core.cell_presets import CellPresets
+from battery_sim.core.cell import CellPresets
 from battery_sim.core.experiment import Environment
 from battery_sim.core.investigation_tools import BatchSimulationConfig
 from battery_sim.core.experiment import Model

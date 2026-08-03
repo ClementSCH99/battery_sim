@@ -27,7 +27,6 @@ OVERSIZED_MODULE_BUDGETS = {
     Path("core/result_formatter.py"): 951,
     Path("core/api_schema.py"): 948,
     Path("core/agent_api.py"): 700,
-    Path("core/cell_presets.py"): 624,
     Path("interface/vehicle_tools.py"): 549,
     Path("core/charging_strategies.py"): 476,
     Path("core/simulation_session.py"): 473,
@@ -39,7 +38,7 @@ OVERSIZED_MODULE_BUDGETS = {
 }
 
 STABLE_CORE_MODULES = {
-    "cell.py",
+    "cell/model.py",
     "experiment/environment.py",
     "experiment/model.py",
     "experiment/protocol.py",

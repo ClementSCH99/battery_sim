@@ -54,7 +54,7 @@ canonical runtime signal vocabulary (`voltage`, `current`, `soc`, etc.).
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Any, Optional
 
-from battery_sim.core.cell_presets import CellPresets, CellPreset
+from battery_sim.core.cell import CellPresets, CellPreset
 from battery_sim.core.result import Signal
 
 

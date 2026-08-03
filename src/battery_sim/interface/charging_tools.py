@@ -5,7 +5,7 @@ from typing import Callable, Optional
 
 import numpy as np
 
-from battery_sim.core.cell_presets import CellPresets
+from battery_sim.core.cell import CellPresets
 from battery_sim.core.charging_strategies import (
     ChargingStrategyComparison,
     ChargingStrategyEvaluator,

@@ -10,7 +10,7 @@ TEACHING: These tests verify:
 
 import pytest
 import math
-from battery_sim.core.cell_presets import CellPresets
+from battery_sim.core.cell import CellPresets
 from battery_sim.core.investigation_tools import PackSizer, PackConfiguration
 from battery_sim.core.pack import PackSizer as FocusedPackSizer
 from battery_sim.core.agent_api import AgentAPI

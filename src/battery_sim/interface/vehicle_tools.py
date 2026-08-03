@@ -3,7 +3,7 @@
 import time
 from typing import Any, Optional
 
-from battery_sim.core.cell_presets import CellPresets
+from battery_sim.core.cell import CellPresets
 from battery_sim.core.drive_cycles import get_drive_cycle, scale_drive_cycle
 from battery_sim.core.pack import PackConfiguration, PackSizer
 from battery_sim.core.result_formatter import DualFormatResult
