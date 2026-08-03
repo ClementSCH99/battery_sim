@@ -2,7 +2,7 @@
 
 import pytest
 
-from battery_sim.backend.pybamm_backend import PyBaMMBackend
+from battery_sim.infrastructure.pybamm.pybamm_backend import PyBaMMBackend
 from battery_sim.core.cell import Cell
 from battery_sim.core.experiment import Environment
 

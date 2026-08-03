@@ -6,7 +6,7 @@ from typing import Any, Optional
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.simulation import SimulationBackend
 from battery_sim.core.simulation import SimulationRun
-from battery_sim.core.services.execution import SimulationExecutionService
+from battery_sim.application.services.execution import SimulationExecutionService
 
 
 class ParameterSweepService:

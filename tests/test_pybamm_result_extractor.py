@@ -2,7 +2,7 @@
 
 import math
 
-from battery_sim.backend.pybamm_result_extractor import PyBaMMResultExtractor
+from battery_sim.infrastructure.pybamm.pybamm_result_extractor import PyBaMMResultExtractor
 from battery_sim.core.result import Signal
 
 

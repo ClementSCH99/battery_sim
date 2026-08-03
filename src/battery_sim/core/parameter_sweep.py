@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from battery_sim.core.services import ParameterSweepService
+from battery_sim.application.services import ParameterSweepService
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.simulation import SimulationBackend
 from battery_sim.core.simulation import SimulationRun

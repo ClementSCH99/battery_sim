@@ -1,13 +1,13 @@
-# battery_sim/backend/pybamm_backend.py
+# battery_sim.infrastructure.pybamm/pybamm_backend.py
 import pybamm
 import time
 
-from battery_sim.backend.pybamm_observability import PyBaMMObservabilityBuilder
-from battery_sim.backend.pybamm_problem_builder import (
+from battery_sim.infrastructure.pybamm.pybamm_observability import PyBaMMObservabilityBuilder
+from battery_sim.infrastructure.pybamm.pybamm_problem_builder import (
     PyBaMMProblemBuilder,
     translate_protocol_to_pybamm,
 )
-from battery_sim.backend.pybamm_result_extractor import PyBaMMResultExtractor
+from battery_sim.infrastructure.pybamm.pybamm_result_extractor import PyBaMMResultExtractor
 from battery_sim.core.cell import Cell
 from battery_sim.core.experiment import Environment
 from battery_sim.core.experiment import Model

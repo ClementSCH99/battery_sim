@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 import numpy as np
 
-from battery_sim.backend.pybamm_signal import (
+from battery_sim.infrastructure.pybamm.pybamm_signal import (
     PYBAMM_SIGNAL_ALIASES,
     PYBAMM_SIGNAL_MAP,
 )

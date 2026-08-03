@@ -11,7 +11,7 @@ from battery_sim.core.simulation import SimulationMetadata
 from battery_sim.core.simulation import SimulationRun
 from battery_sim.core.simulation_session import SimulationSession
 from battery_sim.core.experiment import SolverConfig
-from battery_sim.interface.simulation_tool import SimulationToolHandler
+from battery_sim.interfaces.python.simulation_tool import SimulationToolHandler
 
 
 class CapturingBackend(SimulationBackend):

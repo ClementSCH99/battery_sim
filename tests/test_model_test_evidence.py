@@ -1,7 +1,7 @@
 """Tests for conservative model-validation evidence language."""
 
-from battery_sim.core.services.evidence import ModelTestEvidenceService
-from battery_sim.core.services.test_comparison import TraceComparison
+from battery_sim.application.services.evidence import ModelTestEvidenceService
+from battery_sim.application.services.test_comparison import TraceComparison
 
 
 def _comparison(rmse=0.02, coverage="complete"):

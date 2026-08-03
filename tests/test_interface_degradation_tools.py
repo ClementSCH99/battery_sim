@@ -7,7 +7,7 @@ from battery_sim.core.simulation import SimulationBackend
 from battery_sim.core.simulation import SimulationMetadata
 from battery_sim.core.simulation import SimulationRun
 from battery_sim.core.simulation_session import SimulationSession
-from battery_sim.interface.degradation_tools import DegradationToolHandler
+from battery_sim.interfaces.python.degradation_tools import DegradationToolHandler
 from battery_sim.core.result import Signal
 from battery_sim.core.result import TimeSeries
 

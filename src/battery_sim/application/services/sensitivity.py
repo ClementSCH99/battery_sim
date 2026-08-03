@@ -7,8 +7,8 @@ from battery_sim.core.cell import Cell
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.simulation import SimulationBackend
 from battery_sim.core.simulation import SimulationRun
-from battery_sim.core.services.execution import BatchExecutionService
-from battery_sim.core.services.sweep import ParameterSweepService
+from battery_sim.application.services.execution import BatchExecutionService
+from battery_sim.application.services.sweep import ParameterSweepService
 
 
 @dataclass(frozen=True)

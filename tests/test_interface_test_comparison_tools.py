@@ -10,7 +10,7 @@ from battery_sim.core.simulation import SimulationMetadata
 from battery_sim.core.simulation import SimulationRun
 from battery_sim.core.simulation_session import SimulationSession
 from battery_sim.core.experiment import SolverConfig
-from battery_sim.interface.test_comparison_tools import ModelTestComparisonToolHandler
+from battery_sim.interfaces.python.test_comparison_tools import ModelTestComparisonToolHandler
 from battery_sim.core.result import Signal
 from battery_sim.core.result import TimeSeries
 

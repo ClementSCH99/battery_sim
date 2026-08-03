@@ -14,7 +14,7 @@ from battery_sim.core.experiment import Environment
 from battery_sim.core.experiment import Model
 from battery_sim.core.experiment import Protocol
 from battery_sim.core.result_formatter import DualFormatResult
-from battery_sim.core.services import SimulationExecutionService
+from battery_sim.application.services import SimulationExecutionService
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.simulation import SimulationBackend
 from battery_sim.core.simulation_session import SimulationSession

@@ -23,7 +23,7 @@ from battery_sim.core.experiment import Environment
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.simulation import SimulationRun
 from battery_sim.core.experiment import SolverConfig
-from battery_sim.backend.pybamm_backend import PyBaMMBackend, translate_protocol_to_pybamm
+from battery_sim.infrastructure.pybamm.pybamm_backend import PyBaMMBackend, translate_protocol_to_pybamm
 from battery_sim.core.result import Signal
 
 @pytest.fixture(scope="module")
@@ -647,7 +647,7 @@ class TestPowerStep:
 
     def test_power_composition_with_rest(self, backend):
         """PowerStep discharge + rest produces correct PyBaMM experiment string."""
-        from battery_sim.backend.pybamm_backend import translate_protocol_to_pybamm
+        from battery_sim.infrastructure.pybamm.pybamm_backend import translate_protocol_to_pybamm
         
         protocol = Protocol.power(power_W=10.0, duration_s=3600) + Protocol.rest(duration_s=600)
         
@@ -665,7 +665,7 @@ class TestPowerStep:
 
     def test_power_pybamm_translation_discharge(self, backend):
         """PowerStep positive power translates to 'Discharge at X W'."""
-        from battery_sim.backend.pybamm_backend import translate_protocol_to_pybamm
+        from battery_sim.infrastructure.pybamm.pybamm_backend import translate_protocol_to_pybamm
         
         protocol = Protocol.power(power_W=15.0, duration_s=1800)
         experiment_strings = translate_protocol_to_pybamm(protocol)
@@ -675,7 +675,7 @@ class TestPowerStep:
 
     def test_power_pybamm_translation_charge(self, backend):
         """PowerStep negative power translates to 'Charge at |X| W'."""
-        from battery_sim.backend.pybamm_backend import translate_protocol_to_pybamm
+        from battery_sim.infrastructure.pybamm.pybamm_backend import translate_protocol_to_pybamm
         
         protocol = Protocol.power(power_W=-5.0, duration_s=900)
         experiment_strings = translate_protocol_to_pybamm(protocol)

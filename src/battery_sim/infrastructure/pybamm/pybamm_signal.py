@@ -1,4 +1,4 @@
-# battery_sim/backend/pybamm_signal
+# battery_sim.infrastructure.pybamm/pybamm_signal
 from battery_sim.core.result import Signal
 
 # Map Signal enum to PyBaMM signal names.

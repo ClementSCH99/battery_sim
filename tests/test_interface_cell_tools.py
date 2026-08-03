@@ -1,7 +1,7 @@
 """Fast contract tests for cell discovery and feasibility handlers."""
 
 from battery_sim.core.api_schema import APISchema
-from battery_sim.interface.cell_tools import CellToolHandler
+from battery_sim.interfaces.python.cell_tools import CellToolHandler
 
 
 def test_catalog_exposes_reference_provenance_and_missing_packaging_data():

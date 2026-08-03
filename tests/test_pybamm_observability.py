@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from battery_sim.backend.pybamm_observability import PyBaMMObservabilityBuilder
+from battery_sim.infrastructure.pybamm.pybamm_observability import PyBaMMObservabilityBuilder
 from battery_sim.core.cell import Cell
 from battery_sim.core.experiment import Environment
 from battery_sim.core.experiment import Model

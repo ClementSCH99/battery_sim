@@ -1,11 +1,11 @@
-"""Compatibility imports for the focused :mod:`battery_sim.core.services` package.
+"""Compatibility imports for the focused :mod:`battery_sim.application.services` package.
 
-New code should import the service it needs from ``battery_sim.core.services``
+New code should import the service it needs from ``battery_sim.application.services``
 or its named submodule. This module remains temporarily to avoid breaking
 existing user code while the project architecture is reclaimed.
 """
 
-from battery_sim.core.services import (
+from battery_sim.application.services import (
     BatchExecutionService,
     ComparisonService,
     CyclingAnalyzer,

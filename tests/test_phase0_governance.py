@@ -8,16 +8,16 @@ and model-to-test tests.
 import ast
 from pathlib import Path
 
-from battery_sim.interface.agent_api import AgentAPI
+from battery_sim.interfaces.python.agent_api import AgentAPI
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_ROOT = PROJECT_ROOT / "src" / "battery_sim"
 SOURCE_ROOTS = (
     PACKAGE_ROOT / "core",
-    PACKAGE_ROOT / "backend",
-    PACKAGE_ROOT / "interface",
-    PACKAGE_ROOT / "types",
+    PACKAGE_ROOT / "infrastructure",
+    PACKAGE_ROOT / "interfaces",
+    PACKAGE_ROOT / "application",
 )
 MAX_MODULE_LINES = 300
 
@@ -27,14 +27,14 @@ OVERSIZED_MODULE_BUDGETS = {
     Path("core/result_formatter.py"): 951,
     Path("core/api_schema.py"): 948,
     Path("core/agent_api.py"): 700,
-    Path("interface/vehicle_tools.py"): 549,
+    Path("interfaces/python/vehicle_tools.py"): 549,
     Path("core/charging_strategies.py"): 476,
     Path("core/simulation_session.py"): 473,
     Path("core/cell_selection.py"): 447,
     Path("core/operating_window.py"): 446,
-    Path("interface/degradation_tools.py"): 443,
+    Path("interfaces/python/degradation_tools.py"): 443,
     Path("core/result_analyzer.py"): 370,
-    Path("interface/planning_tools.py"): 368,
+    Path("interfaces/python/planning_tools.py"): 368,
 }
 
 STABLE_CORE_MODULES = {
@@ -52,8 +52,6 @@ STABLE_CORE_MODULES = {
     "simulation/errors.py",
     "simulation/diagnostics.py",
     "result/model.py",
-    "reference_cases.py",
-    "test_trace.py",
 }
 
 
@@ -106,7 +104,7 @@ def test_stable_core_does_not_depend_on_interfaces_or_infrastructure():
         path = PACKAGE_ROOT / "core" / module_name
         for line, imported_module in _internal_imports(path):
             if imported_module.startswith(
-                ("battery_sim.backend", "battery_sim.interface")
+                ("battery_sim.infrastructure.pybamm", "battery_sim.interfaces.python")
             ):
                 violations.append(
                     f"{path.relative_to(PROJECT_ROOT)}:{line} imports "

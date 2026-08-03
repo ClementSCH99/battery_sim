@@ -15,7 +15,7 @@ from battery_sim.core.result_formatter import DualFormatResult
 from battery_sim.core.experiment import Model
 from battery_sim.core.experiment import Protocol, ConstantCurrent
 from battery_sim.core.experiment import SolverConfig
-from battery_sim.backend.pybamm_backend import PyBaMMBackend
+from battery_sim.infrastructure.pybamm.pybamm_backend import PyBaMMBackend
 
 
 # ---------------------------------------------------------------------------

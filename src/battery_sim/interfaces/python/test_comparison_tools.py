@@ -9,7 +9,7 @@ from battery_sim.core.experiment import Environment
 from battery_sim.core.experiment import Model
 from battery_sim.core.experiment import Protocol
 from battery_sim.core.result_formatter import DualFormatResult
-from battery_sim.core.services import (
+from battery_sim.application.services import (
     ModelTestEvidenceService,
     SimulationExecutionService,
     TraceComparisonService,
@@ -18,7 +18,7 @@ from battery_sim.core.simulation import Simulation
 from battery_sim.core.simulation import SimulationBackend
 from battery_sim.core.simulation_session import SimulationSession
 from battery_sim.core.experiment import SolverConfig
-from battery_sim.core.test_trace import CellTestTrace
+from battery_sim.validation.test_trace import CellTestTrace
 
 
 class ModelTestComparisonToolHandler:

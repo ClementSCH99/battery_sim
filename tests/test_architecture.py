@@ -28,8 +28,8 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_ROOT = PROJECT_ROOT / "src" / "battery_sim"
 CORE_DIR = PACKAGE_ROOT / "core"
-INTERFACE_DIR = PACKAGE_ROOT / "interface"
-PYBAMM_BACKEND = PACKAGE_ROOT / "backend" / "pybamm_backend.py"
+INTERFACE_DIR = PACKAGE_ROOT / "interfaces" / "python"
+PYBAMM_BACKEND = PACKAGE_ROOT / "infrastructure" / "pybamm" / "pybamm_backend.py"
 APPLICATION_SERVICES_SHIM = CORE_DIR / "application_services.py"
 INVESTIGATION_TOOLS = CORE_DIR / "investigation_tools.py"
 PARAMETER_SWEEP_FACADE = CORE_DIR / "parameter_sweep.py"
@@ -63,7 +63,7 @@ class TestNoCoreBackendImports:
     ALLOWED_FILES = {"simulation_backend.py", "agent_api.py", "__init__.py"}
 
     def _imports_from_backend(self, filepath: Path) -> list[str]:
-        """Return any import lines that reference battery_sim.backend."""
+        """Return any import lines that reference battery_sim.infrastructure.pybamm."""
         violations = []
         source = filepath.read_text()
         try:
@@ -73,20 +73,20 @@ class TestNoCoreBackendImports:
 
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module:
-                if node.module.startswith("battery_sim.backend"):
+                if node.module.startswith("battery_sim.infrastructure.pybamm"):
                     violations.append(
                         f"line {node.lineno}: from {node.module} import ..."
                     )
             elif isinstance(node, ast.Import):
                 for alias in node.names:
-                    if alias.name.startswith("battery_sim.backend"):
+                    if alias.name.startswith("battery_sim.infrastructure.pybamm"):
                         violations.append(
                             f"line {node.lineno}: import {alias.name}"
                         )
         return violations
 
     def test_no_core_imports_backend(self):
-        """No file in core/ should import from battery_sim.backend."""
+        """No file in core/ should import from battery_sim.infrastructure.pybamm."""
         all_violations: dict[str, list[str]] = {}
 
         for py_file in _core_python_files():
@@ -114,11 +114,11 @@ class TestInterfaceDependsOnPorts:
             tree = ast.parse(filepath.read_text())
             for node in ast.walk(tree):
                 if isinstance(node, ast.ImportFrom) and node.module:
-                    if node.module.startswith("battery_sim.backend"):
+                    if node.module.startswith("battery_sim.infrastructure.pybamm"):
                         violations.append(f"{filepath.name}:{node.lineno}")
                 elif isinstance(node, ast.Import):
                     for alias in node.names:
-                        if alias.name.startswith("battery_sim.backend"):
+                        if alias.name.startswith("battery_sim.infrastructure.pybamm"):
                             violations.append(f"{filepath.name}:{node.lineno}")
 
         assert not violations, (
@@ -131,7 +131,7 @@ class TestPyBaMMBackendResponsibilities:
     """Signal extraction must remain outside the backend orchestrator."""
 
     def test_result_extraction_delegates_to_focused_component(self):
-        from battery_sim.backend.pybamm_backend import PyBaMMBackend
+        from battery_sim.infrastructure.pybamm.pybamm_backend import PyBaMMBackend
 
         source = inspect.getsource(PyBaMMBackend._extract_result)
 
@@ -139,7 +139,7 @@ class TestPyBaMMBackendResponsibilities:
         assert len(source.splitlines()) <= 5
 
     def test_problem_construction_delegates_to_focused_component(self):
-        from battery_sim.backend.pybamm_backend import PyBaMMBackend
+        from battery_sim.infrastructure.pybamm.pybamm_backend import PyBaMMBackend
 
         source = inspect.getsource(PyBaMMBackend._execute_simulation)
 
@@ -148,7 +148,7 @@ class TestPyBaMMBackendResponsibilities:
         assert "build_parameters(" not in source
 
     def test_observability_delegates_to_focused_component(self):
-        from battery_sim.backend.pybamm_backend import PyBaMMBackend
+        from battery_sim.infrastructure.pybamm.pybamm_backend import PyBaMMBackend
 
         source = inspect.getsource(PyBaMMBackend._build_observability_data)
 
@@ -188,7 +188,7 @@ class TestFocusedApplicationServices:
                     violations.append(f"{filepath.name}:{node.lineno}")
 
         assert not violations, (
-            "Active code must import focused battery_sim.core.services modules: "
+            "Active code must import focused battery_sim.application.services modules: "
             + ", ".join(violations)
         )
 
@@ -366,7 +366,7 @@ class TestSignalVocabularyConsistency:
 
     def test_backend_and_schema_units_match(self):
         """Runtime extraction units must agree with the public signal catalog."""
-        from battery_sim.backend.pybamm_signal import (
+        from battery_sim.infrastructure.pybamm.pybamm_signal import (
             DERIVED_SIGNALS,
             PYBAMM_SIGNAL_MAP,
         )

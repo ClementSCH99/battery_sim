@@ -4,7 +4,7 @@ from battery_sim.core.investigation_tools import OperatingWindowPoint
 from battery_sim.core.experiment import Model
 from battery_sim.core.simulation import SimulationBackend
 from battery_sim.core.simulation_session import SimulationSession
-from battery_sim.interface.operating_tools import OperatingToolHandler
+from battery_sim.interfaces.python.operating_tools import OperatingToolHandler
 
 
 class UnusedBackend(SimulationBackend):

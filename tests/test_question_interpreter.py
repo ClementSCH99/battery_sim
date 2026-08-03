@@ -1,6 +1,6 @@
 """Evidence-level tests for conservative bilingual question extraction."""
 
-from battery_sim.interface.question_interpreter import QuestionInterpreter
+from battery_sim.interfaces.python.question_interpreter import QuestionInterpreter
 
 
 def test_french_question_extracts_only_supported_exact_vocabulary():

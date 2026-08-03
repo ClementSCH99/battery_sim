@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import math
 from typing import Any, Optional
 
-from battery_sim.core.services.test_comparison import TraceComparison
+from battery_sim.application.services.test_comparison import TraceComparison
 
 
 @dataclass(frozen=True)

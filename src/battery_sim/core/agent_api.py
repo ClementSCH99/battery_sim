@@ -49,7 +49,7 @@ package those runs into DualFormatResult values for interface consumption.
 
 from typing import Dict, List, Any, Optional
 
-from battery_sim.core.services import (
+from battery_sim.application.services import (
     ComparisonService,
     SensitivityService,
 )
@@ -63,18 +63,18 @@ from battery_sim.core.experiment import Model
 from battery_sim.core.experiment import Protocol, ConstantCurrent
 from battery_sim.core.simulation import SimulationBackend
 from battery_sim.core.experiment import SolverConfig
-from battery_sim.backend.pybamm_backend import PyBaMMBackend
-from battery_sim.interface.simulation_tool import SimulationToolHandler
-from battery_sim.interface.cell_tools import CellToolHandler
-from battery_sim.interface.charging_tools import ChargingToolHandler
-from battery_sim.interface.degradation_tools import DegradationToolHandler
-from battery_sim.interface.discovery_tools import DiscoveryToolHandler, discover_agent_tools
-from battery_sim.interface.investigation_tools import EVAssumptions, InvestigationToolHandler
-from battery_sim.interface.operating_tools import OperatingToolHandler
-from battery_sim.interface.planning_tools import ExperimentPlanningToolHandler
-from battery_sim.interface.session_tools import SessionToolHandler
-from battery_sim.interface.test_comparison_tools import ModelTestComparisonToolHandler
-from battery_sim.interface.vehicle_tools import VehicleToolHandler
+from battery_sim.infrastructure.pybamm.pybamm_backend import PyBaMMBackend
+from battery_sim.interfaces.python.simulation_tool import SimulationToolHandler
+from battery_sim.interfaces.python.cell_tools import CellToolHandler
+from battery_sim.interfaces.python.charging_tools import ChargingToolHandler
+from battery_sim.interfaces.python.degradation_tools import DegradationToolHandler
+from battery_sim.interfaces.python.discovery_tools import DiscoveryToolHandler, discover_agent_tools
+from battery_sim.interfaces.python.investigation_tools import EVAssumptions, InvestigationToolHandler
+from battery_sim.interfaces.python.operating_tools import OperatingToolHandler
+from battery_sim.interfaces.python.planning_tools import ExperimentPlanningToolHandler
+from battery_sim.interfaces.python.session_tools import SessionToolHandler
+from battery_sim.interfaces.python.test_comparison_tools import ModelTestComparisonToolHandler
+from battery_sim.interfaces.python.vehicle_tools import VehicleToolHandler
 
 
 # ============================================================================

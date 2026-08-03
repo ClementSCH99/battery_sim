@@ -5,8 +5,8 @@ from types import SimpleNamespace
 import pytest
 
 from battery_sim.core.result import Result
-from battery_sim.core.services.test_comparison import TraceComparisonService
-from battery_sim.core.test_trace import CellTestTrace
+from battery_sim.application.services.test_comparison import TraceComparisonService
+from battery_sim.validation.test_trace import CellTestTrace
 from battery_sim.core.result import Signal
 from battery_sim.core.result import TimeSeries
 

@@ -20,7 +20,7 @@ Coverage map (what's tested and why):
 import math
 import pytest
 
-from battery_sim.backend.pybamm_backend import PyBaMMBackend
+from battery_sim.infrastructure.pybamm.pybamm_backend import PyBaMMBackend
 from battery_sim.core.application_services import (
     BatchExecutionService,
     ComparisonService,
@@ -29,7 +29,7 @@ from battery_sim.core.application_services import (
     SensitivityService,
     SimulationExecutionService,
 )
-from battery_sim.core import services as focused_services
+from battery_sim.application import services as focused_services
 from battery_sim.core.cell import Cell
 from battery_sim.core.simulation import ConvergenceDiagnostics
 from battery_sim.core.experiment import Environment

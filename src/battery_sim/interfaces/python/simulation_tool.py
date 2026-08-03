@@ -3,7 +3,7 @@
 import time
 from typing import Optional
 
-from battery_sim.core.services import (
+from battery_sim.application.services import (
     ComparisonService,
     SimulationExecutionService,
 )

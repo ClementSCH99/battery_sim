@@ -6,7 +6,7 @@ from typing import Any, Optional
 import numpy as np
 
 from battery_sim.core.simulation import SimulationRun
-from battery_sim.core.test_trace import CellTestTrace
+from battery_sim.validation.test_trace import CellTestTrace
 
 
 @dataclass(frozen=True)

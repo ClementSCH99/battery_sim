@@ -95,7 +95,7 @@ class BatchExecutionService:
         parameter_values: list[Any],
         config: Any,
     ) -> list[tuple[Any, Optional[SimulationRun]]]:
-        from battery_sim.core.services.sweep import ParameterSweepService
+        from battery_sim.application.services.sweep import ParameterSweepService
 
         baseline_simulation = Simulation(
             cell=baseline_cell,

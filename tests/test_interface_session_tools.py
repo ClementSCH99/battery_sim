@@ -1,7 +1,7 @@
 """Contract tests for the extracted session interface handler."""
 
 from battery_sim.core.simulation_session import SimulationSession
-from battery_sim.interface.session_tools import SessionToolHandler
+from battery_sim.interfaces.python.session_tools import SessionToolHandler
 
 
 def test_session_handler_delegates_report_generation():

@@ -5,7 +5,7 @@ from typing import Any, Type
 
 import pybamm
 
-from battery_sim.backend.parameter_mapper import resolve_parameter_mapping
+from battery_sim.infrastructure.pybamm.parameter_mapper import resolve_parameter_mapping
 from battery_sim.core.cell import Cell
 from battery_sim.core.experiment import Environment
 from battery_sim.core.experiment import Model

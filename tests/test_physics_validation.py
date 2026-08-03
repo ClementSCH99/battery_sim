@@ -19,7 +19,7 @@ from battery_sim.core.experiment import Protocol, ConstantCurrent
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.simulation import SimulationRun
 from battery_sim.core.experiment import SolverConfig
-from battery_sim.backend.pybamm_backend import PyBaMMBackend
+from battery_sim.infrastructure.pybamm.pybamm_backend import PyBaMMBackend
 from battery_sim.core.result import Signal
 
 

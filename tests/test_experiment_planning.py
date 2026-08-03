@@ -1,6 +1,6 @@
 """Fast contract tests for non-executing electrochemical experiment plans."""
 
-from battery_sim.interface.planning_tools import ExperimentPlanningToolHandler
+from battery_sim.interfaces.python.planning_tools import ExperimentPlanningToolHandler
 
 
 def test_missing_cell_is_reported_instead_of_guessed():

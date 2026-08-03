@@ -3,10 +3,10 @@
 import numpy as np
 import pytest
 
-from battery_sim.backend.parameter_mapper import resolve_parameter_mapping
-from battery_sim.backend.pybamm_backend import PyBaMMBackend
+from battery_sim.infrastructure.pybamm.parameter_mapper import resolve_parameter_mapping
+from battery_sim.infrastructure.pybamm.pybamm_backend import PyBaMMBackend
 from battery_sim.core.cell import Cell
-from battery_sim.core.reference_cases import (
+from battery_sim.validation.reference_cases import (
     NMC_CHEN_SPM_CCCV_CHARGE,
     NMC_CHEN_SPM_REST,
     PROTOCOL_REFERENCE_CASES,

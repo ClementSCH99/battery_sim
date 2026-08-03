@@ -10,9 +10,9 @@ from battery_sim.core.experiment import Protocol
 from battery_sim.core.result_formatter import ComparisonFormatter
 from battery_sim.core.simulation import SimulationBackend
 from battery_sim.core.simulation_session import SimulationSession
-from battery_sim.core.services import SensitivityResult
+from battery_sim.application.services import SensitivityResult
 from battery_sim.core.experiment import SolverConfig
-from battery_sim.interface.investigation_tools import EVAssumptions, InvestigationToolHandler
+from battery_sim.interfaces.python.investigation_tools import EVAssumptions, InvestigationToolHandler
 
 
 def _handler(*, comparison_service=None, sensitivity_service=None):

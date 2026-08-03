@@ -39,7 +39,7 @@ from battery_sim.core.exceptions import (
     SolverValidationError,
 )
 from battery_sim.core.result import Signal
-from battery_sim.backend.pybamm_signal import PYBAMM_SIGNAL_MAP
+from battery_sim.infrastructure.pybamm.pybamm_signal import PYBAMM_SIGNAL_MAP
 
 
 # ============================================================================
@@ -759,7 +759,7 @@ class TestThermalSignals:
 class TestDegradationSignals:
     """Verify Phase C degradation signals are registered."""
 
-    from battery_sim.backend.pybamm_signal import DERIVED_SIGNALS
+    from battery_sim.infrastructure.pybamm.pybamm_signal import DERIVED_SIGNALS
 
     PHASE_C_SIGNALS = [
         Signal.SEI_THICKNESS,
