@@ -38,7 +38,11 @@ def discover_agent_tools(api: Any) -> list[dict[str, Any]]:
                 "examples": list(getattr(member, "_tool_examples", [])),
             }
         )
-    return sorted(tools, key=lambda tool: 0 if tool["maturity"] == "core" else 1)
+    maturity_order = {"core": 0, "experimental": 1, "legacy": 2}
+    return sorted(
+        tools,
+        key=lambda tool: maturity_order.get(tool["maturity"], 99),
+    )
 
 
 class DiscoveryToolHandler:
@@ -58,11 +62,8 @@ class DiscoveryToolHandler:
             "describe_api",
             "list_presets",
             "plan_experiment",
-            "check_feasibility",
             "run_simulation",
             "compare_test_data",
-            "compare_presets",
-            "sensitivity_analysis",
             "get_session_summary",
         ]
         markdown = "\n".join(

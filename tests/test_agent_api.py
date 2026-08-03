@@ -77,9 +77,6 @@ class TestAgentAPIComposition:
             "plan_experiment",
             "compare_test_data",
             "list_presets",
-            "compare_presets",
-            "sensitivity_analysis",
-            "check_feasibility",
             "run_simulation",
             "get_session_summary",
         }

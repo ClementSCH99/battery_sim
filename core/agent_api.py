@@ -99,6 +99,8 @@ def agent_tool(
         maturity: ``core`` for reviewed first-product capabilities, otherwise
             ``experimental`` until physical assumptions are reviewed.
     """
+    if maturity not in {"core", "experimental", "legacy"}:
+        raise ValueError(f"Unsupported tool maturity: {maturity}")
     def decorator(func):
         func._is_agent_tool = True
         func._tool_description = description
@@ -329,7 +331,7 @@ class AgentAPI:
             "Compare LFP_5AH, NMC_5AH, and NCA_5AH",
             "Which is better for high power?",
         ],
-        maturity="core",
+        maturity="experimental",
     )
     def compare_presets(
         self,
@@ -392,7 +394,7 @@ class AgentAPI:
     
     @agent_tool(
         description="Analyze sensitivity of battery performance to parameter variations",
-        maturity="core",
+        maturity="experimental",
     )
     def sensitivity_analysis(
         self,
@@ -424,7 +426,7 @@ class AgentAPI:
     
     @agent_tool(
         description="Check if a cell/environment combination is physically feasible",
-        maturity="core",
+        maturity="experimental",
     )
     def check_feasibility(
         self,

@@ -57,14 +57,37 @@ validation exige en plus une comparaison à des données indépendantes.
 
 - [x] créer une branche de récupération ;
 - [x] enregistrer l'état interrompu dans un checkpoint non audité ;
-- [ ] établir la matrice des responsabilités et dépendances ;
-- [ ] classer chaque API en `core`, `experimental` ou `legacy` ;
-- [ ] identifier les couches de compatibilité supprimables ;
-- [ ] définir les règles de dépendance et de taille des modules ;
-- [ ] verrouiller une version de PyBaMM pendant la validation.
+- [x] établir la matrice des responsabilités et dépendances ;
+- [x] classer chaque API en `core`, `experimental` ou `legacy` ;
+- [x] identifier les couches de compatibilité supprimables ;
+- [x] définir les règles de dépendance et de taille des modules ;
+- [x] verrouiller une version de PyBaMM pendant la validation.
 
 Critère de sortie : le chemin API → modèle → PyBaMM → résultat est explicable,
 et chaque module du noyau possède une responsabilité unique.
+
+## Phase 0.5 — Restructurer le dépôt
+
+Objectif : rendre les frontières visibles dans l'arborescence avant d'ajouter
+des données ou de modifier la physique.
+
+- [ ] adopter un layout standard `src/battery_sim/` ;
+- [ ] découper le noyau en `core/cell`, `core/experiment`, `core/result` et
+  `core/simulation` ;
+- [ ] déplacer les cas d'usage vers `application/` ;
+- [ ] déplacer les références et traces d'essai vers `validation/` ;
+- [ ] renommer `backend/` en `infrastructure/pybamm/` ;
+- [ ] séparer API Python, presenters et MCP sous `interfaces/` ;
+- [ ] isoler les outils non validés sous `experimental/` ;
+- [ ] définir une API Python publique courte depuis `battery_sim` ;
+- [ ] supprimer les couches de compatibilité sans consommateur externe ;
+- [ ] découper tous les modules à 300 lignes maximum ;
+- [ ] mettre à jour packaging, documentation et tests ;
+- [ ] vérifier les suites rapide, architecture et références physiques.
+
+Critère de sortie : le package installé provient uniquement de `src/`, les
+dépendances suivent les règles documentées et aucun module de production ne
+dépasse 300 lignes.
 
 ## Phase 1 — Référence NMC électrique
 
