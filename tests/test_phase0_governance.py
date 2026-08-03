@@ -123,13 +123,15 @@ def test_module_size_debt_cannot_grow():
     assert violations == []
 
 
-def test_phase0_governance_documents_exist():
-    required_documents = {
+def test_phase0_governance_documents_are_archived():
+    archived_documents = {
         "module_matrix.md",
         "architecture_rules.md",
         "api_lifecycle.md",
         "compatibility_inventory.md",
     }
-    docs = PROJECT_ROOT / "docs"
+    recovery_archive = PROJECT_ROOT / "docs" / "legacy" / "recovery"
 
-    assert required_documents <= {path.name for path in docs.iterdir()}
+    assert archived_documents <= {
+        path.name for path in recovery_archive.iterdir()
+    }

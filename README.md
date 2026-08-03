@@ -1,121 +1,67 @@
 # battery_sim
 
-A Python toolkit for battery cell simulation built on [PyBaMM](https://pybamm.org/). Define cells, protocols, and environments as domain objects, then run electrochemical simulations through a clean service layer that keeps your code decoupled from the simulation engine.
+`battery_sim` est un assistant interne d’investigation électrochimique construit
+sur PyBaMM. Il vise des simulations cellule explicables, reproductibles et
+utiles aux décisions de calibration BMS.
+
+Le projet privilégie la chaîne suivante :
+
+> question d’ingénierie → hypothèses explicites → expérience reproductible →
+> résultat contrôlé → interprétation avec limites
+
+## État actuel
+
+- Phase 0 : inventaire, gouvernance et reprise Git terminés ;
+- Phase 0.5 : architecture `src/` et découpage des responsabilités terminés ;
+- prochaine étape : Phase 1, référence électrique NMC ;
+- outils pack, véhicule, charge et vieillissement avancé conservés comme
+  expérimentaux tant que leur preuve physique n’est pas suffisante.
 
 ## Installation
 
 ```bash
-pip install -e .
-
-# With dev dependencies (pytest, matplotlib):
-pip install -e ".[dev]"
+python -m venv .venv
+.venv/bin/python -m pip install -e ".[dev]"
 ```
 
-## Quick Start
+PyBaMM est volontairement verrouillé pendant la construction des références
+scientifiques.
+
+## Premier calcul
 
 ```python
-from battery_sim.core.cell import Cell
-from battery_sim.core.model import Model
-from battery_sim.core.protocol import Protocol
-from battery_sim.core.environment import Environment
-from battery_sim.core.simulation import Simulation
-from battery_sim.backend.pybamm_backend import PyBaMMBackend
+from battery_sim import Cell, Environment, Model, Protocol, Simulation
+from battery_sim.composition import create_backend
 
-# 1. Pick a cell from built-in presets
-cell = Cell.preset("LFP_5AH")
-
-# 2. Define a discharge protocol (1C for 60 seconds)
-protocol = Protocol.cc(current_A=5.0, duration_s=60)
-
-# 3. Set operating conditions
-env = Environment(temperature_C=25.0)
-
-# 4. Build the simulation request
-sim = Simulation(
-    cell=cell,
+simulation = Simulation(
+    cell=Cell.preset("NMC_CHEN_LGM50"),
     model=Model.SPM,
-    protocol=protocol,
-    environment=env,
+    protocol=Protocol.cc(current_A=5.0, duration_s=60.0),
+    environment=Environment(temperature_C=25.0),
 )
 
-# 5. Run it
-backend = PyBaMMBackend()
-run = sim.run(backend)
+run = simulation.run(create_backend())
 
-# 6. Access results
-print(run.is_successful())
-print(run.result.voltage())          # Voltage time series
-print(run.result.available_signals())  # All extracted signals
-print(run.summary())                 # Human-readable summary
+print(run.metadata.success)
+print(run.result.voltage())
+print(run.errors)
 ```
 
-### Available Presets
+Une exécution renvoie toujours `SimulationRun`, qui regroupe le résultat, les
+métadonnées, les erreurs et les diagnostics.
 
-```python
-from battery_sim.core.cell import Cell
-print(Cell.list_presets())
-# ['LFP_5AH', 'NMC_5AH', 'NCA_5AH', 'LCO_3AH', 'LFP_10AH',
-#  'NMC_10AH', 'LMNO_4AH', 'NMC_HE_50AH', 'LFP_HP_20AH']
-```
+## Lire la documentation
 
-### CC-CV Charge
+Commencer par [l’index documentaire](docs/README.md). Le parcours recommandé
+est : direction produit, architecture, validité physique, roadmap, puis guides.
 
-```python
-from battery_sim.core.protocol import Protocol
-
-protocol = Protocol.cccv(
-    charge_current_A=2.5,     # CC phase at 0.5C
-    cutoff_voltage_V=4.2,     # Switch to CV at 4.2 V
-    taper_current_A=0.25,     # End when current drops to 0.25 A
-)
-```
-
-### MCP Server (LLM integration)
-
-`battery_sim` ships an MCP server so LLM tools (VS Code Copilot, Claude Desktop)
-can run simulations directly. See the [MCP Setup Guide](docs/mcp_setup.md) for
-configuration instructions.
-
-## Documentation
-
-- **[Project Direction](docs/project_direction.md)** — Product purpose, scope, and engineering principles
-- **[Architecture](docs/architecture.md)** — Current execution flow and module responsibilities
-- **[Recovery Roadmap](docs/roadmap.md)** — Progressive refactoring and scientific validation plan
-- **[Tool Maturity](docs/tool_maturity.md)** — Core versus experimental agent capabilities
-- **[Experiment Planning](docs/experiment_planning.md)** — Reviewable model, protocol, signal and assumption proposals
-- **[Model-to-Test Comparison](docs/test_comparison.md)** — Sourced CC-discharge residual analysis without hidden extrapolation
-- **[Scientific Reference Cases](docs/reference_cases.md)** — Literature-backed LFP/NMC regression cases
-- **[Usage Guide](docs/usage_guide.md)** — Full tutorial: protocols, comparisons, sweeps, plotting
-- **[MCP Setup Guide](docs/mcp_setup.md)** — Connect battery_sim to VS Code Copilot or Claude Desktop
-
-## Architecture
-
-The codebase uses a layered architecture: domain objects (`Cell`, `Protocol`, `Simulation`) express simulation intent, application services orchestrate use cases, and the PyBaMM backend sits behind an abstract port. The architecture is being simplified around a cell-level electrochemical investigation assistant. See the [current architecture](docs/architecture.md); archived audit reports are historical records, not current references.
-
-## Running Tests
+## Vérification
 
 ```bash
-# Fast development suite (no intentionally slow studies)
-pytest -m "not slow" -q
-
-# Architectural guard tests only
-pytest tests/test_architecture.py -v
-
-# PyBaMM smoke tests
-pytest tests/test_smoke.py -v
-
-# Entire suite, including long parameter grids and advanced studies
-pytest tests/ -v
+.venv/bin/python -m pytest -m "not slow" -q
+.venv/bin/python -m pytest tests/test_architecture.py tests/test_phase0_governance.py -q
+.venv/bin/python -m pytest tests/test_reference_cases.py tests/test_physics_validation.py -q
 ```
 
-The complete suite can take several minutes. Use the fast suite during normal refactoring and run the relevant slow module when changing scientific behavior.
-
-## Dependencies
-
-- **Required:** [PyBaMM](https://pybamm.org/), NumPy
-- **Optional:** matplotlib (for plotting)
-- **Dev:** pytest
-
-## License
-
-See repository for license details.
+Les anciens audits et rapports restent consultables sous `docs/legacy/`, mais
+ne décrivent pas nécessairement le code actuel.

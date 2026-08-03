@@ -67,4 +67,4 @@ Le projet est de nouveau maîtrisable lorsqu'un développeur peut répondre rapi
 4. Où une capacité agent est-elle orchestrée ?
 5. Quelles hypothèses rendent un résultat valide ou invalide ?
 
-La carte d'architecture répond à ces questions pour l'état actuel. La feuille de route décrit comment réduire progressivement les zones encore ambiguës.
+La carte d'architecture répond à ces questions pour l'état actuel. La feuille de route concentre désormais la suite sur la validation électrique NMC, puis thermique et vieillissement.
