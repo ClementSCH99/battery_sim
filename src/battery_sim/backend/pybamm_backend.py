@@ -9,13 +9,13 @@ from battery_sim.backend.pybamm_problem_builder import (
 )
 from battery_sim.backend.pybamm_result_extractor import PyBaMMResultExtractor
 from battery_sim.core.cell import Cell
-from battery_sim.core.environment import Environment
-from battery_sim.core.model import Model
+from battery_sim.core.experiment import Environment
+from battery_sim.core.experiment import Model
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.simulation import SimulationBackend
-from battery_sim.core.protocol import Protocol
+from battery_sim.core.experiment import Protocol
 from battery_sim.core.result import Result
-from battery_sim.core.solver import SolverConfig
+from battery_sim.core.experiment import SolverConfig
 
 from battery_sim.core.simulation import SimulationRun
 

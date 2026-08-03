@@ -17,12 +17,12 @@ from typing import Dict, List, Any, Optional
 import numpy as np
 
 from battery_sim.core.cell import Cell
-from battery_sim.core.model import Model
-from battery_sim.core.protocol import Protocol, CC_CV, ConstantCurrent, Rest, PowerStep
-from battery_sim.core.environment import Environment
-from battery_sim.core.solver import SolverConfig
+from battery_sim.core.experiment import Model
+from battery_sim.core.experiment import Protocol, CC_CV, ConstantCurrent, Rest, PowerStep
+from battery_sim.core.experiment import Environment
+from battery_sim.core.experiment import SolverConfig
 from battery_sim.core.simulation import Simulation
-from battery_sim.core.degradation import DegradationConfig
+from battery_sim.core.experiment import DegradationConfig
 from battery_sim.core.simulation import SimulationBackend
 
 

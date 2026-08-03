@@ -1,7 +1,7 @@
 """Fast contracts for experimental lifetime and warranty handlers."""
 
 from battery_sim.core.simulation import ConvergenceDiagnostics
-from battery_sim.core.model import Model
+from battery_sim.core.experiment import Model
 from battery_sim.core.result import Result
 from battery_sim.core.simulation import SimulationBackend
 from battery_sim.core.simulation import SimulationMetadata

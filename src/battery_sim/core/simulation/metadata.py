@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 from datetime import datetime
 from uuid import uuid4
-from battery_sim.core.solver import SolverConfig, Solver
+from battery_sim.core.experiment import SolverConfig, Solver
 
 
 @dataclass(frozen=True)

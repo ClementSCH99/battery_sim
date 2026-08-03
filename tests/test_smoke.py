@@ -17,12 +17,12 @@ be fast enough that developers actually run them.
 import pytest
 
 from battery_sim.core.cell import Cell
-from battery_sim.core.model import Model
-from battery_sim.core.protocol import Protocol, ConstantCurrent, CC_CV, PowerStep, DriveProfile, Rest
-from battery_sim.core.environment import Environment
+from battery_sim.core.experiment import Model
+from battery_sim.core.experiment import Protocol, ConstantCurrent, CC_CV, PowerStep, DriveProfile, Rest
+from battery_sim.core.experiment import Environment
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.simulation import SimulationRun
-from battery_sim.core.solver import SolverConfig
+from battery_sim.core.experiment import SolverConfig
 from battery_sim.backend.pybamm_backend import PyBaMMBackend, translate_protocol_to_pybamm
 from battery_sim.core.result import Signal
 
@@ -226,7 +226,7 @@ class TestDegradation:
 
     def test_okane_sei_degradation_3_cycles(self, backend):
         """Run 3 cycles with the degradation-oriented OKane2022 parameter set."""
-        from battery_sim.core.degradation import DegradationConfig
+        from battery_sim.core.experiment import DegradationConfig
 
         cell = Cell.preset("NMC_OKANE_AGING")
         charge = Protocol.cccv(
@@ -458,7 +458,7 @@ class TestAdvancedDegradation:
 
     def test_sei_solvent_diffusion_limited(self, backend):
         """Run NMC_5AH cycling (3 cycles) with sei_model='solvent-diffusion limited' on SPMe."""
-        from battery_sim.core.degradation import DegradationConfig
+        from battery_sim.core.experiment import DegradationConfig
 
         cell = Cell.preset("NMC_5AH")
         charge = Protocol.cccv(
@@ -494,7 +494,7 @@ class TestAdvancedDegradation:
 
     def test_sei_ec_reaction_limited_via_explicit_model(self, backend):
         """Explicit sei_model='ec reaction limited' works the same as sei_growth=True."""
-        from battery_sim.core.degradation import DegradationConfig
+        from battery_sim.core.experiment import DegradationConfig
 
         cell = Cell.preset("NMC_OKANE_AGING")
         charge = Protocol.cccv(
@@ -524,7 +524,7 @@ class TestAdvancedDegradation:
 
     def test_sei_reaction_limited_on_spme(self, backend):
         """Explicit sei_model='reaction limited' works on SPMe model."""
-        from battery_sim.core.degradation import DegradationConfig
+        from battery_sim.core.experiment import DegradationConfig
 
         cell = Cell.preset("NMC_OKANE_AGING")
         charge = Protocol.cccv(

@@ -4,7 +4,7 @@ import pytest
 
 from battery_sim.backend.pybamm_backend import PyBaMMBackend
 from battery_sim.core.cell import Cell
-from battery_sim.core.environment import Environment
+from battery_sim.core.experiment import Environment
 
 
 def test_backend_maps_ambient_and_initial_temperature_independently():

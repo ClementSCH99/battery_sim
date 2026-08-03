@@ -59,10 +59,10 @@ from battery_sim.core.result_formatter import (
     InsightExtractor,
 )
 from battery_sim.core.simulation_session import SimulationSession
-from battery_sim.core.model import Model
-from battery_sim.core.protocol import Protocol, ConstantCurrent
+from battery_sim.core.experiment import Model
+from battery_sim.core.experiment import Protocol, ConstantCurrent
 from battery_sim.core.simulation import SimulationBackend
-from battery_sim.core.solver import SolverConfig
+from battery_sim.core.experiment import SolverConfig
 from battery_sim.backend.pybamm_backend import PyBaMMBackend
 from battery_sim.interface.simulation_tool import SimulationToolHandler
 from battery_sim.interface.cell_tools import CellToolHandler

@@ -26,10 +26,10 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Any, Optional, Callable
 
 from battery_sim.core.cell import Cell
-from battery_sim.core.model import Model
-from battery_sim.core.protocol import Protocol
-from battery_sim.core.environment import Environment
-from battery_sim.core.solver import SolverConfig
+from battery_sim.core.experiment import Model
+from battery_sim.core.experiment import Protocol
+from battery_sim.core.experiment import Environment
+from battery_sim.core.experiment import SolverConfig
 from battery_sim.core.simulation import SimulationRun
 from battery_sim.core.simulation import SimulationBackend
 

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
-from battery_sim.core.model import Model
+from battery_sim.core.experiment import Model
 
 if TYPE_CHECKING:
     from battery_sim.core.simulation import Simulation

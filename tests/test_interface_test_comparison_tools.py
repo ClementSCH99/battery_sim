@@ -4,12 +4,12 @@ import pytest
 
 from battery_sim.core.simulation import ConvergenceDiagnostics
 from battery_sim.core.result import Result
-from battery_sim.core.model import Model
+from battery_sim.core.experiment import Model
 from battery_sim.core.simulation import SimulationBackend
 from battery_sim.core.simulation import SimulationMetadata
 from battery_sim.core.simulation import SimulationRun
 from battery_sim.core.simulation_session import SimulationSession
-from battery_sim.core.solver import SolverConfig
+from battery_sim.core.experiment import SolverConfig
 from battery_sim.interface.test_comparison_tools import ModelTestComparisonToolHandler
 from battery_sim.core.result import Signal
 from battery_sim.core.result import TimeSeries

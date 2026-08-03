@@ -14,7 +14,7 @@ from battery_sim.core.reference_cases import (
     get_reference_case,
 )
 from battery_sim.core.simulation import SimulationMetadata
-from battery_sim.core.solver import SolverConfig
+from battery_sim.core.experiment import SolverConfig
 from battery_sim.core.result import Signal
 
 
@@ -153,7 +153,7 @@ def test_prada_lfp_rejects_unparameterized_lumped_thermal_model(backend):
     case = get_reference_case("lfp_prada_spm_0p5c_discharge")
     simulation = case.build_simulation()
     from dataclasses import replace
-    from battery_sim.core.environment import Environment
+    from battery_sim.core.experiment import Environment
 
     simulation = replace(
         simulation,
@@ -171,7 +171,7 @@ def test_prada_lfp_rejects_unparameterized_lumped_thermal_model(backend):
 @pytest.mark.slow
 def test_prada_lfp_rejects_unparameterized_degradation_model(backend):
     from dataclasses import replace
-    from battery_sim.core.degradation import DegradationConfig
+    from battery_sim.core.experiment import DegradationConfig
 
     simulation = get_reference_case("lfp_prada_spm_0p5c_discharge").build_simulation()
     simulation = replace(simulation, degradation=DegradationConfig(sei_growth=True))

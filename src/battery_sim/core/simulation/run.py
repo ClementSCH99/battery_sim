@@ -102,7 +102,7 @@ def ensure_simulation_run(obj) -> SimulationRun:
     if not isinstance(obj, Result):
         raise TypeError(f"Expected Result or SimulationRun, got {type(obj)}")
 
-    from battery_sim.core.solver import SolverConfig
+    from battery_sim.core.experiment import SolverConfig
 
     return SimulationRun(
         result=obj,

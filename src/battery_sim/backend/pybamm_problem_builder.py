@@ -7,9 +7,9 @@ import pybamm
 
 from battery_sim.backend.parameter_mapper import resolve_parameter_mapping
 from battery_sim.core.cell import Cell
-from battery_sim.core.environment import Environment
-from battery_sim.core.model import Model
-from battery_sim.core.protocol import (
+from battery_sim.core.experiment import Environment
+from battery_sim.core.experiment import Model
+from battery_sim.core.experiment import (
     CC_CV,
     ConstantCurrent,
     DriveProfile,
@@ -18,7 +18,7 @@ from battery_sim.core.protocol import (
     Rest,
 )
 from battery_sim.core.simulation import Simulation
-from battery_sim.core.solver import Solver, SolverConfig
+from battery_sim.core.experiment import Solver, SolverConfig
 
 
 _SOLVER_REGISTRY: dict[Solver, Type[pybamm.BaseSolver]] = {

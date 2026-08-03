@@ -9,12 +9,12 @@ Coverage:
 import pytest
 import json
 
-from battery_sim.core.degradation import UsageProfile, DegradationConfig
+from battery_sim.core.experiment import UsageProfile, DegradationConfig
 from battery_sim.core.agent_api import AgentAPI
-from battery_sim.core.model import Model
-from battery_sim.core.protocol import Protocol, ConstantCurrent
+from battery_sim.core.experiment import Model
+from battery_sim.core.experiment import Protocol, ConstantCurrent
 from battery_sim.core.result_formatter import DualFormatResult
-from battery_sim.core.solver import SolverConfig
+from battery_sim.core.experiment import SolverConfig
 
 
 # ===========================================================================

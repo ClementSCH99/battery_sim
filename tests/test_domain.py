@@ -18,10 +18,10 @@ LEARNING NOTES:
 import pytest
 
 from battery_sim.core.cell import Cell
-from battery_sim.core.protocol import Protocol, ConstantCurrent, Rest, CC_CV, PowerStep, DriveProfile, Step, CycleDefinition
-from battery_sim.core.environment import Environment
-from battery_sim.core.solver import SolverConfig, Solver
-from battery_sim.core.model import Model
+from battery_sim.core.experiment import Protocol, ConstantCurrent, Rest, CC_CV, PowerStep, DriveProfile, Step, CycleDefinition
+from battery_sim.core.experiment import Environment
+from battery_sim.core.experiment import SolverConfig, Solver
+from battery_sim.core.experiment import Model
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.drive_cycles import (
     DriveCycleProfile,
@@ -807,62 +807,62 @@ class TestDegradationConfig:
 
     def test_legacy_sei_resolves_to_ec_reaction_limited(self):
         """Backward compat: sei_growth=True resolves to 'ec reaction limited'."""
-        from battery_sim.core.degradation import DegradationConfig
+        from battery_sim.core.experiment import DegradationConfig
         cfg = DegradationConfig(sei_growth=True)
         resolved = cfg.resolve()
         assert resolved.sei == "ec reaction limited"
 
     def test_legacy_plating_resolves_to_irreversible(self):
-        from battery_sim.core.degradation import DegradationConfig
+        from battery_sim.core.experiment import DegradationConfig
         cfg = DegradationConfig(lithium_plating=True)
         resolved = cfg.resolve()
         assert resolved.lithium_plating == "irreversible"
 
     def test_legacy_am_loss_resolves_to_stress_driven(self):
-        from battery_sim.core.degradation import DegradationConfig
+        from battery_sim.core.experiment import DegradationConfig
         cfg = DegradationConfig(active_material_loss=True)
         resolved = cfg.resolve()
         assert resolved.am_loss == "stress-driven"
 
     def test_explicit_sei_model_resolves(self):
-        from battery_sim.core.degradation import DegradationConfig
+        from battery_sim.core.experiment import DegradationConfig
         cfg = DegradationConfig(sei_model="solvent-diffusion limited")
         resolved = cfg.resolve()
         assert resolved.sei == "solvent-diffusion limited"
 
     def test_explicit_model_overrides_boolean(self):
         """When both sei_model and sei_growth are set, explicit model wins."""
-        from battery_sim.core.degradation import DegradationConfig
+        from battery_sim.core.experiment import DegradationConfig
         cfg = DegradationConfig(sei_model="ec reaction limited", sei_growth=True)
         resolved = cfg.resolve()
         assert resolved.sei == "ec reaction limited"
 
     def test_invalid_sei_model_raises(self):
-        from battery_sim.core.degradation import DegradationConfig
+        from battery_sim.core.experiment import DegradationConfig
         cfg = DegradationConfig(sei_model="invalid")
         with pytest.raises(ValueError, match="Invalid SEI model"):
             cfg.validate()
 
     def test_invalid_plating_model_raises(self):
-        from battery_sim.core.degradation import DegradationConfig
+        from battery_sim.core.experiment import DegradationConfig
         cfg = DegradationConfig(lithium_plating_model="invalid")
         with pytest.raises(ValueError, match="Invalid lithium plating model"):
             cfg.validate()
 
     def test_invalid_am_loss_model_raises(self):
-        from battery_sim.core.degradation import DegradationConfig
+        from battery_sim.core.experiment import DegradationConfig
         cfg = DegradationConfig(am_loss_model="invalid")
         with pytest.raises(ValueError, match="Invalid AM loss model"):
             cfg.validate()
 
     def test_invalid_particle_mechanics_raises(self):
-        from battery_sim.core.degradation import DegradationConfig
+        from battery_sim.core.experiment import DegradationConfig
         cfg = DegradationConfig(particle_mechanics="invalid")
         with pytest.raises(ValueError, match="Invalid particle mechanics"):
             cfg.validate()
 
     def test_particle_mechanics_and_sei_on_cracks_valid(self):
-        from battery_sim.core.degradation import DegradationConfig
+        from battery_sim.core.experiment import DegradationConfig
         cfg = DegradationConfig(
             particle_mechanics="swelling and cracking",
             sei_on_cracks=True,
@@ -873,22 +873,22 @@ class TestDegradationConfig:
         assert resolved.sei_on_cracks is True
 
     def test_any_enabled_with_submodel(self):
-        from battery_sim.core.degradation import DegradationConfig
+        from battery_sim.core.experiment import DegradationConfig
         cfg = DegradationConfig(sei_model="reaction limited")
         assert cfg.any_enabled() is True
 
     def test_any_enabled_false_by_default(self):
-        from battery_sim.core.degradation import DegradationConfig
+        from battery_sim.core.experiment import DegradationConfig
         cfg = DegradationConfig()
         assert cfg.any_enabled() is False
 
     def test_any_enabled_particle_mechanics(self):
-        from battery_sim.core.degradation import DegradationConfig
+        from battery_sim.core.experiment import DegradationConfig
         cfg = DegradationConfig(particle_mechanics="swelling only")
         assert cfg.any_enabled() is True
 
     def test_no_degradation_resolves_to_none(self):
-        from battery_sim.core.degradation import DegradationConfig
+        from battery_sim.core.experiment import DegradationConfig
         cfg = DegradationConfig()
         resolved = cfg.resolve()
         assert resolved.sei is None

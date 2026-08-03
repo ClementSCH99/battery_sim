@@ -36,16 +36,15 @@ OVERSIZED_MODULE_BUDGETS = {
     Path("interface/degradation_tools.py"): 443,
     Path("core/result_analyzer.py"): 370,
     Path("interface/planning_tools.py"): 368,
-    Path("core/protocol.py"): 302,
 }
 
 STABLE_CORE_MODULES = {
     "cell.py",
-    "environment.py",
-    "model.py",
-    "protocol.py",
-    "solver.py",
-    "degradation.py",
+    "experiment/environment.py",
+    "experiment/model.py",
+    "experiment/protocol.py",
+    "experiment/solver.py",
+    "experiment/degradation.py",
     "exceptions.py",
     "simulation/request.py",
     "simulation/ports.py",

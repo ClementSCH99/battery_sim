@@ -4,7 +4,7 @@ from typing import Optional
 
 from battery_sim.core.api_schema import APISchema
 from battery_sim.core.cell import Cell
-from battery_sim.core.environment import Environment
+from battery_sim.core.experiment import Environment
 from battery_sim.core.investigation_tools import ConstraintChecker
 from battery_sim.core.result_formatter import DualFormatResult
 

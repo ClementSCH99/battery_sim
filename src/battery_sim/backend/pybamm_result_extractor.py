@@ -8,7 +8,7 @@ from battery_sim.backend.pybamm_signal import (
     PYBAMM_SIGNAL_ALIASES,
     PYBAMM_SIGNAL_MAP,
 )
-from battery_sim.core.protocol import Protocol
+from battery_sim.core.experiment import Protocol
 from battery_sim.core.result import Result
 from battery_sim.core.result import Signal
 from battery_sim.core.result import TimeSeries

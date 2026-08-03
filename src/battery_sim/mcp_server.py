@@ -9,7 +9,7 @@ from typing import Any, Callable, Optional
 from mcp.server.fastmcp import FastMCP
 
 from battery_sim.interface.agent_api import AgentAPI
-from battery_sim.core.degradation import UsageProfile
+from battery_sim.core.experiment import UsageProfile
 from battery_sim.core.drive_cycles import list_drive_cycles
 
 mcp = FastMCP("battery-sim")

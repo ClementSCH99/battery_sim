@@ -1,10 +1,9 @@
-# battery_sim/core/solver.py
 from dataclasses import dataclass
 from battery_sim.core.exceptions import SolverValidationError
 from typing import Optional
 from enum import Enum
 
-from battery_sim.core.protocol import Protocol
+from battery_sim.core.experiment.protocol import Protocol
 
 import numpy as np
 
