@@ -1,5 +1,5 @@
 # battery_sim/backend/pybamm_signal
-from battery_sim.types.signal import Signal
+from battery_sim.core.result import Signal
 
 # Map Signal enum to PyBaMM signal names.
 # Signal.TEMPERATURE is the runtime cell temperature signal, distinct from the

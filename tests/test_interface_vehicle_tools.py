@@ -9,8 +9,8 @@ from battery_sim.core.simulation_metadata import SimulationMetadata
 from battery_sim.core.simulation_run import SimulationRun
 from battery_sim.core.simulation_session import SimulationSession
 from battery_sim.interface.vehicle_tools import VehicleToolHandler
-from battery_sim.types.signal import Signal
-from battery_sim.types.timeseries import TimeSeries
+from battery_sim.core.result import Signal
+from battery_sim.core.result import TimeSeries
 
 
 class EnergyBackend(SimulationBackend):

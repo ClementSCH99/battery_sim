@@ -35,7 +35,6 @@ OVERSIZED_MODULE_BUDGETS = {
     Path("core/operating_window.py"): 446,
     Path("interface/degradation_tools.py"): 443,
     Path("core/simulation_run.py"): 390,
-    Path("core/result.py"): 374,
     Path("core/result_analyzer.py"): 370,
     Path("interface/planning_tools.py"): 368,
     Path("core/simulation_error.py"): 353,
@@ -56,7 +55,7 @@ STABLE_CORE_MODULES = {
     "simulation_metadata.py",
     "simulation_error.py",
     "convergence_diagnostics.py",
-    "result.py",
+    "result/model.py",
     "reference_cases.py",
     "test_trace.py",
 }

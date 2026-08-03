@@ -328,7 +328,7 @@ class TestSignalVocabularyConsistency:
 
     def test_all_signal_enum_values_in_schema(self):
         """Every Signal enum member should appear in the schema catalog."""
-        from battery_sim.types.signal import Signal
+        from battery_sim.core.result import Signal
         from battery_sim.core.api_schema import APISchema
 
         schema = APISchema()
@@ -347,7 +347,7 @@ class TestSignalVocabularyConsistency:
     def test_schema_signals_are_valid(self):
         """Every signal in the schema catalog should either be a Signal enum
         value or a documented derived metric (like peak_voltage_V)."""
-        from battery_sim.types.signal import Signal
+        from battery_sim.core.result import Signal
         from battery_sim.core.api_schema import APISchema
 
         schema = APISchema()
@@ -371,7 +371,7 @@ class TestSignalVocabularyConsistency:
             PYBAMM_SIGNAL_MAP,
         )
         from battery_sim.core.api_schema import APISchema
-        from battery_sim.types.signal import Signal
+        from battery_sim.core.result import Signal
 
         catalog = APISchema().get_signals().signals
         runtime_units = {

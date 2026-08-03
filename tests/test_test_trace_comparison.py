@@ -7,8 +7,8 @@ import pytest
 from battery_sim.core.result import Result
 from battery_sim.core.services.test_comparison import TraceComparisonService
 from battery_sim.core.test_trace import CellTestTrace
-from battery_sim.types.signal import Signal
-from battery_sim.types.timeseries import TimeSeries
+from battery_sim.core.result import Signal
+from battery_sim.core.result import TimeSeries
 
 
 def _run(time_s, voltage_V, current_A=None):

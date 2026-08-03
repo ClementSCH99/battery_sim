@@ -3,7 +3,7 @@
 import math
 
 from battery_sim.backend.pybamm_result_extractor import PyBaMMResultExtractor
-from battery_sim.types.signal import Signal
+from battery_sim.core.result import Signal
 
 
 class Variable:

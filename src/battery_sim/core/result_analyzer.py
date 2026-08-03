@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 
 from battery_sim.core.result import Result
-from battery_sim.types.signal import Signal
+from battery_sim.core.result import Signal
 
 
 @dataclass

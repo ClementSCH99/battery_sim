@@ -13,7 +13,7 @@ from battery_sim.core.model import Model
 from battery_sim.core.protocol import Protocol
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.solver import SolverConfig
-from battery_sim.types.signal import Signal
+from battery_sim.core.result import Signal
 
 
 @dataclass(frozen=True)

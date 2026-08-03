@@ -15,7 +15,7 @@ from battery_sim.core.reference_cases import (
 )
 from battery_sim.core.simulation_metadata import SimulationMetadata
 from battery_sim.core.solver import SolverConfig
-from battery_sim.types.signal import Signal
+from battery_sim.core.result import Signal
 
 
 class TestReferenceCaseDefinitions:

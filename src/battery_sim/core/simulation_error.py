@@ -195,7 +195,7 @@ class ErrorDetector:
         """
         errors = []
         
-        from battery_sim.types.signal import Signal
+        from battery_sim.core.result import Signal
         
         if Signal.VOLTAGE not in result._data:
             return errors
@@ -248,7 +248,7 @@ class ErrorDetector:
             List of SimulationError objects for any numerical issues
         """
         import numpy as np
-        from battery_sim.types.signal import Signal
+        from battery_sim.core.result import Signal
         
         errors = []
         
@@ -294,7 +294,7 @@ class ErrorDetector:
             List of SimulationError objects
         """
         import numpy as np
-        from battery_sim.types.signal import Signal
+        from battery_sim.core.result import Signal
         
         errors = []
         

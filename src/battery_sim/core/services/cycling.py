@@ -5,7 +5,7 @@ from typing import Any, Optional
 import numpy as np
 
 from battery_sim.core.simulation_run import SimulationRun
-from battery_sim.types.signal import Signal
+from battery_sim.core.result import Signal
 
 
 class CyclingAnalyzer:

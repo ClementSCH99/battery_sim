@@ -263,7 +263,7 @@ Visualise result signals (requires `matplotlib`):
 
 ```python
 from battery_sim.core.result_plotting import plot_result
-from battery_sim.types.signal import Signal
+from battery_sim.core.result import Signal
 
 # After running a simulation
 run = sim.run(backend)
@@ -388,7 +388,7 @@ run = sim.run(PyBaMMBackend())
 After execution, degradation signals are available:
 
 ```python
-from battery_sim.types.signal import Signal
+from battery_sim.core.result import Signal
 
 sei = run.result._data.get(Signal.SEI_THICKNESS)         # SEI layer thickness
 cap_loss = run.result._data.get(Signal.TOTAL_CAPACITY_LOSS)  # Total capacity loss

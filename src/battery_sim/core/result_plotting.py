@@ -9,7 +9,7 @@ from typing import Optional, List
 
 import numpy as np
 
-from battery_sim.types.signal import Signal
+from battery_sim.core.result import Signal
 from battery_sim.core.result import Result
 
 

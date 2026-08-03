@@ -20,7 +20,7 @@ from battery_sim.core.simulation import Simulation
 from battery_sim.core.simulation_run import SimulationRun
 from battery_sim.core.solver import SolverConfig
 from battery_sim.backend.pybamm_backend import PyBaMMBackend
-from battery_sim.types.signal import Signal
+from battery_sim.core.result import Signal
 
 
 @pytest.fixture(scope="module")

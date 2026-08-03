@@ -15,8 +15,8 @@ import math
 import pytest
 import numpy as np
 
-from battery_sim.types.signal import Signal
-from battery_sim.types.timeseries import TimeSeries
+from battery_sim.core.result import Signal
+from battery_sim.core.result import TimeSeries
 from battery_sim.core.result import Result
 
 

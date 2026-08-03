@@ -10,7 +10,7 @@ import re
 from typing import Any, Iterable
 
 from battery_sim.core.cell import Cell
-from battery_sim.types.signal import Signal
+from battery_sim.core.result import Signal
 
 
 @dataclass(frozen=True)

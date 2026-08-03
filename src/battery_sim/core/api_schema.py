@@ -55,7 +55,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Any, Optional
 
 from battery_sim.core.cell_presets import CellPresets, CellPreset
-from battery_sim.types.signal import Signal
+from battery_sim.core.result import Signal
 
 
 # ============================================================================

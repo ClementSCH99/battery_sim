@@ -7,7 +7,7 @@ from battery_sim.core.experiment_plan import ExperimentPlan
 from battery_sim.core.model import Model
 from battery_sim.core.result_formatter import DualFormatResult
 from battery_sim.interface.question_interpreter import QuestionInterpreter
-from battery_sim.types.signal import Signal
+from battery_sim.core.result import Signal
 
 
 class ExperimentPlanningToolHandler:

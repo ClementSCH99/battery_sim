@@ -38,7 +38,7 @@ from battery_sim.core.exceptions import (
     EnvironmentValidationError,
     SolverValidationError,
 )
-from battery_sim.types.signal import Signal
+from battery_sim.core.result import Signal
 from battery_sim.backend.pybamm_signal import PYBAMM_SIGNAL_MAP
 
 
