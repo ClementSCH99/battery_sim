@@ -1,6 +1,6 @@
 """Fast contract tests for cell discovery and feasibility handlers."""
 
-from battery_sim.core.api_schema import APISchema
+from battery_sim.interfaces.python.schema import APISchema
 from battery_sim.interfaces.python.cell_tools import CellToolHandler
 
 

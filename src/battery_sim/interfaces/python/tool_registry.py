@@ -53,17 +53,16 @@ from battery_sim.application.services import (
     ComparisonService,
     SensitivityService,
 )
-from battery_sim.core.api_schema import APISchema
-from battery_sim.core.result_formatter import (
+from battery_sim.interfaces.python.schema import APISchema
+from battery_sim.interfaces.presenters.result import (
     DualFormatResult,
     InsightExtractor,
 )
-from battery_sim.core.simulation_session import SimulationSession
+from battery_sim.application.session import SimulationSession
 from battery_sim.core.experiment import Model
 from battery_sim.core.experiment import Protocol, ConstantCurrent
 from battery_sim.core.simulation import SimulationBackend
 from battery_sim.core.experiment import SolverConfig
-from battery_sim.infrastructure.pybamm.pybamm_backend import PyBaMMBackend
 from battery_sim.interfaces.python.simulation_tool import SimulationToolHandler
 from battery_sim.interfaces.python.cell_tools import CellToolHandler
 from battery_sim.interfaces.python.charging_tools import ChargingToolHandler
@@ -159,7 +158,8 @@ class AgentAPI:
         ])
         self.default_model = default_model
         self.default_solver_config = default_solver_config or SolverConfig()
-        self._backend = backend if backend is not None else PyBaMMBackend()
+        from battery_sim.composition import create_backend
+        self._backend = backend if backend is not None else create_backend()
         self.comparison_service = ComparisonService(backend=self._backend)
         self.sensitivity_service = SensitivityService(backend=self._backend)
         self._cell_tools = CellToolHandler(schema=self.schema)

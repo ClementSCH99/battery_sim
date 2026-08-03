@@ -10,7 +10,7 @@ from mcp.server.fastmcp import FastMCP
 
 from battery_sim.interfaces.python.agent_api import AgentAPI
 from battery_sim.core.experiment import UsageProfile
-from battery_sim.core.drive_cycles import list_drive_cycles
+from battery_sim.experimental.system.drive_cycles import list_drive_cycles
 
 mcp = FastMCP("battery-sim")
 api = AgentAPI()

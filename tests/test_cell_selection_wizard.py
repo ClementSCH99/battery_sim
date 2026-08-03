@@ -8,13 +8,13 @@ against application requirements.
 import pytest
 from typing import Dict, Any
 
-from battery_sim.core.investigation_tools import (
+from battery_sim.application.analysis.investigation import (
     CellSelectionScorer,
     CellScoringResult,
 )
-from battery_sim.core.agent_api import AgentAPI
+from battery_sim.interfaces.python.tool_registry import AgentAPI
 from battery_sim.core.cell import CellPresets
-from battery_sim.core.result_formatter import (
+from battery_sim.interfaces.presenters.result import (
     DualFormatResult,
     ExecutiveSummaryFormatter,
 )

@@ -31,9 +31,9 @@ CORE_DIR = PACKAGE_ROOT / "core"
 INTERFACE_DIR = PACKAGE_ROOT / "interfaces" / "python"
 PYBAMM_BACKEND = PACKAGE_ROOT / "infrastructure" / "pybamm" / "pybamm_backend.py"
 APPLICATION_SERVICES_SHIM = CORE_DIR / "application_services.py"
-INVESTIGATION_TOOLS = CORE_DIR / "investigation_tools.py"
+INVESTIGATION_TOOLS = PACKAGE_ROOT / "application" / "analysis" / "investigation.py"
 PARAMETER_SWEEP_FACADE = CORE_DIR / "parameter_sweep.py"
-AGENT_API_FACADE = CORE_DIR / "agent_api.py"
+AGENT_API_FACADE = PACKAGE_ROOT / "interfaces" / "python" / "tool_registry.py"
 
 
 def _core_python_files():
@@ -202,7 +202,7 @@ class TestFocusedApplicationServices:
         assert len(AGENT_API_FACADE.read_text().splitlines()) <= 700
 
     def test_discovery_methods_delegate_to_focused_handler(self):
-        from battery_sim.core.agent_api import AgentAPI
+        from battery_sim.interfaces.python.tool_registry import AgentAPI
 
         catalog_source = inspect.getsource(AgentAPI.get_available_tools)
         description_source = inspect.getsource(AgentAPI.describe_api)
@@ -216,7 +216,7 @@ class TestExperimentalToolExtraction:
 
     @pytest.mark.parametrize("method_name", ["predict_lifetime", "warranty_analysis"])
     def test_degradation_methods_delegate_to_handler(self, method_name):
-        from battery_sim.core.agent_api import AgentAPI
+        from battery_sim.interfaces.python.tool_registry import AgentAPI
 
         source = inspect.getsource(getattr(AgentAPI, method_name))
 
@@ -228,7 +228,7 @@ class TestExperimentalToolExtraction:
         ["pack_sizing", "cell_selection_wizard", "estimate_range"],
     )
     def test_vehicle_methods_delegate_to_handler(self, method_name):
-        from battery_sim.core.agent_api import AgentAPI
+        from battery_sim.interfaces.python.tool_registry import AgentAPI
 
         source = inspect.getsource(getattr(AgentAPI, method_name))
 
@@ -236,7 +236,7 @@ class TestExperimentalToolExtraction:
         assert len(source.splitlines()) <= 35
 
     def test_model_to_test_method_delegates_to_handler(self):
-        from battery_sim.core.agent_api import AgentAPI
+        from battery_sim.interfaces.python.tool_registry import AgentAPI
 
         source = inspect.getsource(AgentAPI.compare_test_data)
 
@@ -248,7 +248,7 @@ class TestExperimentalToolExtraction:
         ["optimize_charging", "compare_charging_strategies"],
     )
     def test_charging_methods_delegate_to_handler(self, method_name):
-        from battery_sim.core.agent_api import AgentAPI
+        from battery_sim.interfaces.python.tool_registry import AgentAPI
 
         source = inspect.getsource(getattr(AgentAPI, method_name))
 
@@ -257,7 +257,7 @@ class TestExperimentalToolExtraction:
 
     @pytest.mark.parametrize("method_name", ["operating_window", "derating_curves"])
     def test_operating_methods_delegate_to_handler(self, method_name):
-        from battery_sim.core.agent_api import AgentAPI
+        from battery_sim.interfaces.python.tool_registry import AgentAPI
 
         source = inspect.getsource(getattr(AgentAPI, method_name))
 
@@ -329,7 +329,7 @@ class TestSignalVocabularyConsistency:
     def test_all_signal_enum_values_in_schema(self):
         """Every Signal enum member should appear in the schema catalog."""
         from battery_sim.core.result import Signal
-        from battery_sim.core.api_schema import APISchema
+        from battery_sim.interfaces.python.schema import APISchema
 
         schema = APISchema()
         catalog = schema.get_signals()
@@ -348,7 +348,7 @@ class TestSignalVocabularyConsistency:
         """Every signal in the schema catalog should either be a Signal enum
         value or a documented derived metric (like peak_voltage_V)."""
         from battery_sim.core.result import Signal
-        from battery_sim.core.api_schema import APISchema
+        from battery_sim.interfaces.python.schema import APISchema
 
         schema = APISchema()
         catalog = schema.get_signals()
@@ -370,7 +370,7 @@ class TestSignalVocabularyConsistency:
             DERIVED_SIGNALS,
             PYBAMM_SIGNAL_MAP,
         )
-        from battery_sim.core.api_schema import APISchema
+        from battery_sim.interfaces.python.schema import APISchema
         from battery_sim.core.result import Signal
 
         catalog = APISchema().get_signals().signals
@@ -394,7 +394,7 @@ class TestToolDiscoverySingleSource:
     """APISchema must not maintain a second manual operation catalog."""
 
     def test_api_schema_contains_only_scientific_domain_metadata(self):
-        from battery_sim.core.api_schema import APISchema
+        from battery_sim.interfaces.python.schema import APISchema
 
         schema = APISchema()
 

@@ -6,18 +6,18 @@ from typing import Callable, Optional
 import numpy as np
 
 from battery_sim.core.cell import CellPresets
-from battery_sim.core.charging_strategies import (
+from battery_sim.experimental.charging.strategies import (
     ChargingStrategyComparison,
     ChargingStrategyEvaluator,
 )
 from battery_sim.core.experiment import Environment
 from battery_sim.core.experiment import Model
 from battery_sim.core.experiment import Protocol
-from battery_sim.core.result_formatter import DualFormatResult
+from battery_sim.interfaces.presenters.result import DualFormatResult
 from battery_sim.application.services import SimulationExecutionService
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.simulation import SimulationBackend
-from battery_sim.core.simulation_session import SimulationSession
+from battery_sim.application.session import SimulationSession
 from battery_sim.core.experiment import SolverConfig
 
 

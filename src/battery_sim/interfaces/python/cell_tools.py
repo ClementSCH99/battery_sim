@@ -2,11 +2,11 @@
 
 from typing import Optional
 
-from battery_sim.core.api_schema import APISchema
+from battery_sim.interfaces.python.schema import APISchema
 from battery_sim.core.cell import Cell
 from battery_sim.core.experiment import Environment
-from battery_sim.core.investigation_tools import ConstraintChecker
-from battery_sim.core.result_formatter import DualFormatResult
+from battery_sim.application.analysis.investigation import ConstraintChecker
+from battery_sim.interfaces.presenters.result import DualFormatResult
 
 
 class CellToolHandler:

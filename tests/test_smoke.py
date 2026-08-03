@@ -71,7 +71,7 @@ class TestComparePresets:
     def test_compare_lfp_and_nmc(self, backend):
         """Run LFP_5AH and NMC_5AH and confirm both produce results."""
         from battery_sim.core.application_services import ComparisonService
-        from battery_sim.core.investigation_tools import BatchSimulationConfig
+        from battery_sim.application.analysis.investigation import BatchSimulationConfig
 
         protocol = Protocol(steps=[
             ConstantCurrent(current_A=5.0, _duration_s=60),

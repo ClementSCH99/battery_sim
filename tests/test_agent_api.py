@@ -25,10 +25,10 @@ Coverage map:
 import pytest
 from unittest.mock import Mock
 
-from battery_sim.core.agent_api import AgentAPI
+from battery_sim.interfaces.python.tool_registry import AgentAPI
 from battery_sim.core.experiment import Model
 from battery_sim.core.experiment import Protocol, ConstantCurrent
-from battery_sim.core.result_formatter import DualFormatResult
+from battery_sim.interfaces.presenters.result import DualFormatResult
 from battery_sim.core.experiment import SolverConfig
 from battery_sim.core.simulation import SimulationBackend
 

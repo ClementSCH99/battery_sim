@@ -23,7 +23,7 @@ from battery_sim.core.experiment import Environment
 from battery_sim.core.experiment import SolverConfig, Solver
 from battery_sim.core.experiment import Model
 from battery_sim.core.simulation import Simulation
-from battery_sim.core.drive_cycles import (
+from battery_sim.experimental.system.drive_cycles import (
     DriveCycleProfile,
     get_drive_cycle,
     list_drive_cycles,

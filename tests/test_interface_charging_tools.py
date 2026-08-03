@@ -6,7 +6,7 @@ from battery_sim.core.result import Result
 from battery_sim.core.simulation import SimulationBackend
 from battery_sim.core.simulation import SimulationMetadata
 from battery_sim.core.simulation import SimulationRun
-from battery_sim.core.simulation_session import SimulationSession
+from battery_sim.application.session import SimulationSession
 from battery_sim.interfaces.python.charging_tools import ChargingToolHandler
 from battery_sim.core.result import Signal
 from battery_sim.core.result import TimeSeries

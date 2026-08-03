@@ -11,10 +11,10 @@ from battery_sim.core.cell import Cell
 from battery_sim.core.experiment import Environment
 from battery_sim.core.experiment import Model
 from battery_sim.core.experiment import ConstantCurrent, Protocol
-from battery_sim.core.result_formatter import DualFormatResult
+from battery_sim.interfaces.presenters.result import DualFormatResult
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.simulation import SimulationBackend
-from battery_sim.core.simulation_session import SimulationSession
+from battery_sim.application.session import SimulationSession
 from battery_sim.core.experiment import SolverConfig
 
 

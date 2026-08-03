@@ -3,8 +3,8 @@
 import inspect
 from typing import Any, Callable
 
-from battery_sim.core.api_schema import APISchema
-from battery_sim.core.result_formatter import DualFormatResult
+from battery_sim.interfaces.python.schema import APISchema
+from battery_sim.interfaces.presenters.result import DualFormatResult
 
 
 def discover_agent_tools(api: Any) -> list[dict[str, Any]]:

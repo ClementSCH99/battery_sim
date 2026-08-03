@@ -10,8 +10,8 @@ TEACHING: These tests verify:
 
 import pytest
 from battery_sim.core.cell import CellPresets, CellPreset
-from battery_sim.core.agent_api import AgentAPI
-from battery_sim.core.result_formatter import ComparisonFormatter
+from battery_sim.interfaces.python.tool_registry import AgentAPI
+from battery_sim.interfaces.presenters.result import ComparisonFormatter
 
 
 class TestCellPresetEnhanced:

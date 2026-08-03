@@ -33,7 +33,7 @@ from battery_sim.application import services as focused_services
 from battery_sim.core.cell import Cell
 from battery_sim.core.simulation import ConvergenceDiagnostics
 from battery_sim.core.experiment import Environment
-from battery_sim.core.investigation_tools import BatchSimulationConfig
+from battery_sim.application.analysis.investigation import BatchSimulationConfig
 from battery_sim.core.experiment import Model
 from battery_sim.core.parameter_sweep import ParameterSweep, SweepResult
 from battery_sim.core.experiment import Protocol, ConstantCurrent

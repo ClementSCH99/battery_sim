@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from battery_sim.core.pack import PackConfiguration, PackSizer
+from battery_sim.experimental.pack.model import PackConfiguration, PackSizer
 
 
 @dataclass(frozen=True)

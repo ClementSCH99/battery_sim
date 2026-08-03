@@ -5,11 +5,11 @@ from dataclasses import asdict
 from typing import Callable, Optional
 
 from battery_sim.core.cell import Cell
-from battery_sim.core.operating_window import OperatingWindowAnalyzer
+from battery_sim.experimental.limits.operating_window import OperatingWindowAnalyzer
 from battery_sim.core.experiment import Model
-from battery_sim.core.result_formatter import DualFormatResult
+from battery_sim.interfaces.presenters.result import DualFormatResult
 from battery_sim.core.simulation import SimulationBackend
-from battery_sim.core.simulation_session import SimulationSession
+from battery_sim.application.session import SimulationSession
 
 
 class OperatingToolHandler:

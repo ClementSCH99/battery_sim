@@ -1,6 +1,6 @@
 """Agent-facing access to the current investigation trace."""
 
-from battery_sim.core.simulation_session import SimulationSession
+from battery_sim.application.session import SimulationSession
 
 
 class SessionToolHandler:

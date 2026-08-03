@@ -1,4 +1,4 @@
-# battery_sim/core/result_analyzer.py
+# battery_sim.application.analysis.result.py
 """
 ResultAnalyzer: Advanced post-processing and analysis of simulation results.
 

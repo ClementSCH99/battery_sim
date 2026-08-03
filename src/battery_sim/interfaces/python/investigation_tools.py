@@ -7,16 +7,16 @@ from battery_sim.application.services import ComparisonService, SensitivityServi
 from battery_sim.core.cell import Cell
 from battery_sim.core.cell import CellPresets
 from battery_sim.core.experiment import Environment
-from battery_sim.core.investigation_tools import BatchSimulationConfig
+from battery_sim.application.analysis.investigation import BatchSimulationConfig
 from battery_sim.core.experiment import Model
 from battery_sim.core.experiment import Protocol
-from battery_sim.core.result_formatter import (
+from battery_sim.interfaces.presenters.result import (
     ComparisonFormatter,
     DualFormatResult,
     SensitivityFormatter,
 )
 from battery_sim.core.simulation import SimulationBackend
-from battery_sim.core.simulation_session import SimulationSession
+from battery_sim.application.session import SimulationSession
 from battery_sim.core.experiment import SolverConfig
 
 

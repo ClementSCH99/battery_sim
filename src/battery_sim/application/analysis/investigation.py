@@ -34,7 +34,7 @@ from battery_sim.core.simulation import SimulationRun
 from battery_sim.core.simulation import SimulationBackend
 
 # Compatibility re-export for the historical location.
-from battery_sim.core.pack import PackConfiguration, PackSizer
+from battery_sim.experimental.pack.model import PackConfiguration, PackSizer
 
 
 # ============================================================================
@@ -272,7 +272,7 @@ class ParameterExplorer:
 # ============================================================================
 
 # Compatibility re-export; the public tool lives in interface/charging_tools.py.
-from battery_sim.core.charging_screen import (
+from battery_sim.experimental.charging.screen import (
     ChargingOptimizationResult,
     ChargingOptimizer,
 )
@@ -283,7 +283,7 @@ from battery_sim.core.charging_screen import (
 # ============================================================================
 
 # Compatibility re-export; active interface code imports the focused module.
-from battery_sim.core.operating_window import (
+from battery_sim.experimental.limits.operating_window import (
     OperatingWindowAnalyzer,
     OperatingWindowPoint,
 )
@@ -291,4 +291,4 @@ from battery_sim.core.operating_window import (
 
 # Compatibility re-export; the active agent screening lives in
 # interface/vehicle_tools.py.
-from battery_sim.core.cell_selection import CellScoringResult, CellSelectionScorer
+from battery_sim.experimental.pack.cell_selection import CellScoringResult, CellSelectionScorer

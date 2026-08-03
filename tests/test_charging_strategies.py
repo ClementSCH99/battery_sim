@@ -11,16 +11,16 @@ Tests cover:
 import pytest
 
 from battery_sim.core.cell import Cell
-from battery_sim.core.charging_strategies import (
+from battery_sim.experimental.charging.strategies import (
     ChargingStrategyBuilder,
     ChargingStrategyEvaluator,
     ChargingStrategyMetrics,
     ChargingStrategyComparison,
 )
-from battery_sim.core.agent_api import AgentAPI
+from battery_sim.interfaces.python.tool_registry import AgentAPI
 from battery_sim.core.experiment import Protocol
 from battery_sim.core.experiment import ConstantCurrent
-from battery_sim.core.result_formatter import DualFormatResult
+from battery_sim.interfaces.presenters.result import DualFormatResult
 from battery_sim.core.simulation import SimulationBackend
 from battery_sim import mcp_server
 

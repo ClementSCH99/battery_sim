@@ -228,7 +228,7 @@ class Protocol:
         vehicle_mass_kg: float = 1800.0,
         peak_power_kW: float = 150.0,
     ) -> "Protocol":
-        from battery_sim.core.drive_cycles import (
+        from battery_sim.experimental.system.drive_cycles import (
             get_drive_cycle,
             scale_drive_cycle,
         )

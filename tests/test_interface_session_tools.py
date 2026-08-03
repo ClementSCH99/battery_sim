@@ -1,6 +1,6 @@
 """Contract tests for the extracted session interface handler."""
 
-from battery_sim.core.simulation_session import SimulationSession
+from battery_sim.application.session import SimulationSession
 from battery_sim.interfaces.python.session_tools import SessionToolHandler
 
 

@@ -2,7 +2,7 @@
 
 import pytest
 
-from battery_sim.core.agent_api import AgentAPI
+from battery_sim.interfaces.python.tool_registry import AgentAPI
 
 
 @pytest.mark.slow
