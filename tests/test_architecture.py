@@ -33,7 +33,7 @@ PYBAMM_BACKEND = PACKAGE_ROOT / "infrastructure" / "pybamm" / "pybamm_backend.py
 APPLICATION_SERVICES_SHIM = CORE_DIR / "application_services.py"
 INVESTIGATION_TOOLS = PACKAGE_ROOT / "application" / "analysis" / "investigation.py"
 PARAMETER_SWEEP_FACADE = CORE_DIR / "parameter_sweep.py"
-AGENT_API_FACADE = PACKAGE_ROOT / "interfaces" / "python" / "tool_registry.py"
+AGENT_API_FACADE = PACKAGE_ROOT / "interfaces" / "python" / "tool_registry" / "api.py"
 
 
 def _core_python_files():

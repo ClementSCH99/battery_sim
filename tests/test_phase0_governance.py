@@ -13,27 +13,11 @@ from battery_sim.interfaces.python.agent_api import AgentAPI
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_ROOT = PROJECT_ROOT / "src" / "battery_sim"
-SOURCE_ROOTS = (
-    PACKAGE_ROOT / "core",
-    PACKAGE_ROOT / "infrastructure",
-    PACKAGE_ROOT / "interfaces",
-    PACKAGE_ROOT / "application",
-    PACKAGE_ROOT / "experimental",
-)
+SOURCE_ROOTS = (PACKAGE_ROOT,)
 MAX_MODULE_LINES = 300
 
-# Existing debt is frozen. Moving one of these files does not transfer its
-# exception: the target module must be split below MAX_MODULE_LINES.
-OVERSIZED_MODULE_BUDGETS = {
-    Path("interfaces/python/vehicle_tools.py"): 549,
-    Path("experimental/charging/strategies.py"): 476,
-    Path("application/session.py"): 473,
-    Path("experimental/pack/cell_selection.py"): 447,
-    Path("experimental/limits/operating_window.py"): 446,
-    Path("interfaces/python/degradation_tools.py"): 443,
-    Path("application/analysis/result.py"): 370,
-    Path("interfaces/python/planning_tools.py"): 368,
-}
+# Phase 0.5 closed all historical size debt; no module has an exception.
+OVERSIZED_MODULE_BUDGETS: dict[Path, int] = {}
 
 STABLE_CORE_MODULES = {
     "cell/model.py",
