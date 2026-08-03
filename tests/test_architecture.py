@@ -25,9 +25,11 @@ import pytest
 # Helpers
 # ---------------------------------------------------------------------------
 
-CORE_DIR = Path(__file__).resolve().parent.parent / "core"
-INTERFACE_DIR = Path(__file__).resolve().parent.parent / "interface"
-PYBAMM_BACKEND = Path(__file__).resolve().parent.parent / "backend" / "pybamm_backend.py"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PACKAGE_ROOT = PROJECT_ROOT / "src" / "battery_sim"
+CORE_DIR = PACKAGE_ROOT / "core"
+INTERFACE_DIR = PACKAGE_ROOT / "interface"
+PYBAMM_BACKEND = PACKAGE_ROOT / "backend" / "pybamm_backend.py"
 APPLICATION_SERVICES_SHIM = CORE_DIR / "application_services.py"
 INVESTIGATION_TOOLS = CORE_DIR / "investigation_tools.py"
 PARAMETER_SWEEP_FACADE = CORE_DIR / "parameter_sweep.py"

@@ -12,11 +12,12 @@ from battery_sim.interface.agent_api import AgentAPI
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PACKAGE_ROOT = PROJECT_ROOT / "src" / "battery_sim"
 SOURCE_ROOTS = (
-    PROJECT_ROOT / "core",
-    PROJECT_ROOT / "backend",
-    PROJECT_ROOT / "interface",
-    PROJECT_ROOT / "types",
+    PACKAGE_ROOT / "core",
+    PACKAGE_ROOT / "backend",
+    PACKAGE_ROOT / "interface",
+    PACKAGE_ROOT / "types",
 )
 MAX_MODULE_LINES = 300
 
@@ -107,7 +108,7 @@ def test_unvalidated_screeners_are_not_core():
 def test_stable_core_does_not_depend_on_interfaces_or_infrastructure():
     violations: list[str] = []
     for module_name in sorted(STABLE_CORE_MODULES):
-        path = PROJECT_ROOT / "core" / module_name
+        path = PACKAGE_ROOT / "core" / module_name
         for line, imported_module in _internal_imports(path):
             if imported_module.startswith(
                 ("battery_sim.backend", "battery_sim.interface")
@@ -126,7 +127,7 @@ def test_module_size_debt_cannot_grow():
 
     for source_root in SOURCE_ROOTS:
         for path in source_root.rglob("*.py"):
-            relative_path = path.relative_to(PROJECT_ROOT)
+            relative_path = path.relative_to(PACKAGE_ROOT)
             line_count = len(path.read_text(encoding="utf-8").splitlines())
             limit = OVERSIZED_MODULE_BUDGETS.get(
                 relative_path,
