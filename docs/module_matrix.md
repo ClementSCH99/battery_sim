@@ -1,5 +1,8 @@
 # Matrice des modules
 
+> Inventaire historique établi en Phase 0. La migration correspondante est fermée dans `phase05_closure.md`; les chemins ci-dessous décrivent l'état audité avant restructuration.
+
+
 Cette matrice est l'inventaire de phase 0. Elle décrit la responsabilité actuelle,
 le statut et la destination prévue. Les chemins cibles seront créés sous
 `src/battery_sim/` pendant la phase de restructuration.

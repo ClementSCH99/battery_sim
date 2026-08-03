@@ -1,5 +1,8 @@
 # Inventaire de compatibilité
 
+> Inventaire historique établi en Phase 0. La migration correspondante est fermée dans `phase05_closure.md`; les chemins ci-dessous décrivent l'état audité avant restructuration.
+
+
 Cet inventaire empêche les couches transitoires de devenir permanentes.
 
 | Élément actuel | Raison | Décision |

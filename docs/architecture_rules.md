@@ -20,9 +20,8 @@ interfaces → application → core ← infrastructure
   de résultat scientifique.
 - `experimental` peut dépendre du noyau, mais le noyau ne dépend jamais de lui.
 
-Pendant la migration, `core/agent_api.py` est l'unique exception autorisée :
-il sélectionne encore le backend concret et importe des handlers d'interface.
-Cette exception doit disparaître pendant la phase de restructuration.
+La composition du backend concret vit dans `battery_sim/composition.py`.
+Aucune exception n'autorise le noyau à importer une interface ou PyBaMM.
 
 ## Responsabilité
 
@@ -36,14 +35,9 @@ Un module possède une raison principale de changer. En particulier :
 
 ## Taille
 
-- tout nouveau module Python est limité à 300 lignes ;
-- un module existant de plus de 300 lignes reçoit un budget explicite ;
-- un module sous dette ne peut pas grossir ;
-- le déplacement mécanique d'un module ne remet pas son budget à zéro ;
-- la cible après restructuration est de 300 lignes maximum par module.
-
-Les budgets transitoires vivent dans `tests/test_architecture.py`. Leur but est
-de rendre la dette visible et monotone, pas de légitimer les gros fichiers.
+- chaque module Python de production est limité à 300 lignes ;
+- aucune exception ou budget transitoire n'est autorisé ;
+- la règle couvre l'intégralité de `src/battery_sim` récursivement.
 
 ## API et maturité
 

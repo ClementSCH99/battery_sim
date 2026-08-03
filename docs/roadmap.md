@@ -71,19 +71,19 @@ et chaque module du noyau possède une responsabilité unique.
 Objectif : rendre les frontières visibles dans l'arborescence avant d'ajouter
 des données ou de modifier la physique.
 
-- [ ] adopter un layout standard `src/battery_sim/` ;
-- [ ] découper le noyau en `core/cell`, `core/experiment`, `core/result` et
+- [x] adopter un layout standard `src/battery_sim/` ;
+- [x] découper le noyau en `core/cell`, `core/experiment`, `core/result` et
   `core/simulation` ;
-- [ ] déplacer les cas d'usage vers `application/` ;
-- [ ] déplacer les références et traces d'essai vers `validation/` ;
-- [ ] renommer `backend/` en `infrastructure/pybamm/` ;
-- [ ] séparer API Python, presenters et MCP sous `interfaces/` ;
-- [ ] isoler les outils non validés sous `experimental/` ;
-- [ ] définir une API Python publique courte depuis `battery_sim` ;
-- [ ] supprimer les couches de compatibilité sans consommateur externe ;
-- [ ] découper tous les modules à 300 lignes maximum ;
-- [ ] mettre à jour packaging, documentation et tests ;
-- [ ] vérifier les suites rapide, architecture et références physiques.
+- [x] déplacer les cas d'usage vers `application/` ;
+- [x] déplacer les références et traces d'essai vers `validation/` ;
+- [x] renommer `backend/` en `infrastructure/pybamm/` ;
+- [x] séparer API Python, presenters et MCP sous `interfaces/` ;
+- [x] isoler les outils non validés sous `experimental/` ;
+- [x] définir une API Python publique courte depuis `battery_sim` ;
+- [x] supprimer les couches de compatibilité sans consommateur externe ;
+- [x] découper tous les modules à 300 lignes maximum ;
+- [x] mettre à jour packaging, documentation et tests ;
+- [x] vérifier les suites rapide, architecture et références physiques.
 
 Critère de sortie : le package installé provient uniquement de `src/`, les
 dépendances suivent les règles documentées et aucun module de production ne
