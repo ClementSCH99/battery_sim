@@ -19,7 +19,7 @@ import pytest
 from battery_sim.core.result import Signal
 from battery_sim.core.result import TimeSeries
 from battery_sim.core.result import Result
-from battery_sim.core.simulation_error import ErrorDetector, ErrorType, SimulationError
+from battery_sim.core.simulation import ErrorDetector, ErrorType, SimulationError
 from battery_sim.core.investigation_tools import ConstraintChecker, ConstraintViolation
 from battery_sim.core.cell import Cell
 from battery_sim.core.environment import Environment

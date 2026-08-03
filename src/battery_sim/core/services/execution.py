@@ -3,13 +3,13 @@
 from typing import Any, Optional
 
 from battery_sim.core.cell import Cell
-from battery_sim.core.convergence_diagnostics import ConvergenceDiagnostics
+from battery_sim.core.simulation import ConvergenceDiagnostics
 from battery_sim.core.result import Result
 from battery_sim.core.simulation import Simulation
-from battery_sim.core.simulation_backend import SimulationBackend
-from battery_sim.core.simulation_error import ErrorType, SimulationError
-from battery_sim.core.simulation_metadata import SimulationMetadata
-from battery_sim.core.simulation_run import SimulationRun
+from battery_sim.core.simulation import SimulationBackend
+from battery_sim.core.simulation import ErrorType, SimulationError
+from battery_sim.core.simulation import SimulationMetadata
+from battery_sim.core.simulation import SimulationRun
 
 
 class SimulationExecutionService:

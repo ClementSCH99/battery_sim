@@ -13,7 +13,7 @@ from battery_sim.core.reference_cases import (
     REFERENCE_CASES,
     get_reference_case,
 )
-from battery_sim.core.simulation_metadata import SimulationMetadata
+from battery_sim.core.simulation import SimulationMetadata
 from battery_sim.core.solver import SolverConfig
 from battery_sim.core.result import Signal
 

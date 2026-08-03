@@ -21,7 +21,7 @@ from battery_sim.core.model import Model
 from battery_sim.core.protocol import Protocol, ConstantCurrent, CC_CV, PowerStep, DriveProfile, Rest
 from battery_sim.core.environment import Environment
 from battery_sim.core.simulation import Simulation
-from battery_sim.core.simulation_run import SimulationRun
+from battery_sim.core.simulation import SimulationRun
 from battery_sim.core.solver import SolverConfig
 from battery_sim.backend.pybamm_backend import PyBaMMBackend, translate_protocol_to_pybamm
 from battery_sim.core.result import Signal

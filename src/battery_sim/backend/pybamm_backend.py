@@ -12,12 +12,12 @@ from battery_sim.core.cell import Cell
 from battery_sim.core.environment import Environment
 from battery_sim.core.model import Model
 from battery_sim.core.simulation import Simulation
-from battery_sim.core.simulation_backend import SimulationBackend
+from battery_sim.core.simulation import SimulationBackend
 from battery_sim.core.protocol import Protocol
 from battery_sim.core.result import Result
 from battery_sim.core.solver import SolverConfig
 
-from battery_sim.core.simulation_run import SimulationRun
+from battery_sim.core.simulation import SimulationRun
 
 class PyBaMMBackend(SimulationBackend):
 

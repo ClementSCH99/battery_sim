@@ -21,7 +21,7 @@ from battery_sim.core.agent_api import AgentAPI
 from battery_sim.core.protocol import Protocol
 from battery_sim.core.protocol import ConstantCurrent
 from battery_sim.core.result_formatter import DualFormatResult
-from battery_sim.core.simulation_backend import SimulationBackend
+from battery_sim.core.simulation import SimulationBackend
 from battery_sim import mcp_server
 
 

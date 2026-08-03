@@ -6,11 +6,11 @@ from typing import Any
 import pybamm
 
 from battery_sim.backend.parameter_mapper import resolve_parameter_mapping
-from battery_sim.core.convergence_diagnostics import ConvergenceDiagnostics
+from battery_sim.core.simulation import ConvergenceDiagnostics
 from battery_sim.core.result import Result
 from battery_sim.core.simulation import Simulation
-from battery_sim.core.simulation_error import ErrorDetector, SimulationError
-from battery_sim.core.simulation_metadata import SimulationMetadata
+from battery_sim.core.simulation import ErrorDetector, SimulationError
+from battery_sim.core.simulation import SimulationMetadata
 
 
 @dataclass(frozen=True)

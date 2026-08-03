@@ -289,7 +289,7 @@ class TestSimulationRunCanonicalOutput:
         return ret if isinstance(ret, str) else getattr(ret, "__name__", str(ret))
 
     def test_simulation_backend_run_returns_simulation_run(self):
-        from battery_sim.core.simulation_backend import SimulationBackend
+        from battery_sim.core.simulation import SimulationBackend
 
         ret = self._get_return_annotation(SimulationBackend, "run")
         assert "SimulationRun" in ret, (

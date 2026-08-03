@@ -10,7 +10,7 @@ from battery_sim.core.environment import Environment
 from battery_sim.core.model import Model
 from battery_sim.core.protocol import CC_CV, Protocol
 from battery_sim.core.simulation import Simulation
-from battery_sim.core.simulation_backend import SimulationBackend
+from battery_sim.core.simulation import SimulationBackend
 from battery_sim.core.solver import SolverConfig
 
 

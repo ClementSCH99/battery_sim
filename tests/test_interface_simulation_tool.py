@@ -2,13 +2,13 @@
 
 import pytest
 
-from battery_sim.core.convergence_diagnostics import ConvergenceDiagnostics
+from battery_sim.core.simulation import ConvergenceDiagnostics
 from battery_sim.core.model import Model
 from battery_sim.core.protocol import Protocol
 from battery_sim.core.result import Result
-from battery_sim.core.simulation_backend import SimulationBackend
-from battery_sim.core.simulation_metadata import SimulationMetadata
-from battery_sim.core.simulation_run import SimulationRun
+from battery_sim.core.simulation import SimulationBackend
+from battery_sim.core.simulation import SimulationMetadata
+from battery_sim.core.simulation import SimulationRun
 from battery_sim.core.simulation_session import SimulationSession
 from battery_sim.core.solver import SolverConfig
 from battery_sim.interface.simulation_tool import SimulationToolHandler

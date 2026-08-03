@@ -8,7 +8,7 @@ from battery_sim.core.cell import Cell
 from battery_sim.core.model import Model
 from battery_sim.core.protocol import Protocol
 from battery_sim.core.result_formatter import ComparisonFormatter
-from battery_sim.core.simulation_backend import SimulationBackend
+from battery_sim.core.simulation import SimulationBackend
 from battery_sim.core.simulation_session import SimulationSession
 from battery_sim.core.services import SensitivityResult
 from battery_sim.core.solver import SolverConfig

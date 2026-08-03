@@ -4,8 +4,8 @@ from dataclasses import replace
 from typing import Any, Optional
 
 from battery_sim.core.simulation import Simulation
-from battery_sim.core.simulation_backend import SimulationBackend
-from battery_sim.core.simulation_run import SimulationRun
+from battery_sim.core.simulation import SimulationBackend
+from battery_sim.core.simulation import SimulationRun
 from battery_sim.core.services.execution import SimulationExecutionService
 
 

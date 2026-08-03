@@ -5,8 +5,8 @@ from typing import Any, Callable, Optional
 
 from battery_sim.core.cell import Cell
 from battery_sim.core.simulation import Simulation
-from battery_sim.core.simulation_backend import SimulationBackend
-from battery_sim.core.simulation_run import SimulationRun
+from battery_sim.core.simulation import SimulationBackend
+from battery_sim.core.simulation import SimulationRun
 from battery_sim.core.services.execution import BatchExecutionService
 from battery_sim.core.services.sweep import ParameterSweepService
 

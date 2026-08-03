@@ -13,7 +13,7 @@ from battery_sim.core.protocol import Protocol
 from battery_sim.core.result_formatter import DualFormatResult
 from battery_sim.core.services import SimulationExecutionService
 from battery_sim.core.simulation import Simulation
-from battery_sim.core.simulation_backend import SimulationBackend
+from battery_sim.core.simulation import SimulationBackend
 from battery_sim.core.simulation_session import SimulationSession
 from battery_sim.core.solver import SolverConfig
 from battery_sim.core.result import Signal

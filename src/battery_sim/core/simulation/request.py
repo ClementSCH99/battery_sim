@@ -3,8 +3,8 @@ from dataclasses import dataclass, field
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from battery_sim.core.simulation_run import SimulationRun
-    from battery_sim.core.simulation_backend import SimulationBackend
+    from battery_sim.core.simulation import SimulationRun
+    from battery_sim.core.simulation import SimulationBackend
     
 from battery_sim.core.cell import Cell
 from battery_sim.core.model import Model

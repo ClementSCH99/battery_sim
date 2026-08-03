@@ -5,7 +5,7 @@ from battery_sim.core.model import Model
 
 if TYPE_CHECKING:
     from battery_sim.core.simulation import Simulation
-    from battery_sim.core.simulation_run import SimulationRun
+    from battery_sim.core.simulation import SimulationRun
 
 
 class SimulationBackend(ABC):

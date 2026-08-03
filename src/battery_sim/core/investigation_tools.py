@@ -30,8 +30,8 @@ from battery_sim.core.model import Model
 from battery_sim.core.protocol import Protocol
 from battery_sim.core.environment import Environment
 from battery_sim.core.solver import SolverConfig
-from battery_sim.core.simulation_run import SimulationRun
-from battery_sim.core.simulation_backend import SimulationBackend
+from battery_sim.core.simulation import SimulationRun
+from battery_sim.core.simulation import SimulationBackend
 
 # Compatibility re-export for the historical location.
 from battery_sim.core.pack import PackConfiguration, PackSizer

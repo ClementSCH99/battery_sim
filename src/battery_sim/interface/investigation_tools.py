@@ -15,7 +15,7 @@ from battery_sim.core.result_formatter import (
     DualFormatResult,
     SensitivityFormatter,
 )
-from battery_sim.core.simulation_backend import SimulationBackend
+from battery_sim.core.simulation import SimulationBackend
 from battery_sim.core.simulation_session import SimulationSession
 from battery_sim.core.solver import SolverConfig
 

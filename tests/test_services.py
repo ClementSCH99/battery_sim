@@ -31,7 +31,7 @@ from battery_sim.core.application_services import (
 )
 from battery_sim.core import services as focused_services
 from battery_sim.core.cell import Cell
-from battery_sim.core.convergence_diagnostics import ConvergenceDiagnostics
+from battery_sim.core.simulation import ConvergenceDiagnostics
 from battery_sim.core.environment import Environment
 from battery_sim.core.investigation_tools import BatchSimulationConfig
 from battery_sim.core.model import Model
@@ -39,10 +39,10 @@ from battery_sim.core.parameter_sweep import ParameterSweep, SweepResult
 from battery_sim.core.protocol import Protocol, ConstantCurrent
 from battery_sim.core.result import Result
 from battery_sim.core.simulation import Simulation
-from battery_sim.core.simulation_error import ErrorType, SimulationError
-from battery_sim.core.simulation_metadata import SimulationMetadata
-from battery_sim.core.simulation_run import SimulationRun
-from battery_sim.core.simulation_backend import SimulationBackend
+from battery_sim.core.simulation import ErrorType, SimulationError
+from battery_sim.core.simulation import SimulationMetadata
+from battery_sim.core.simulation import SimulationRun
+from battery_sim.core.simulation import SimulationBackend
 from battery_sim.core.solver import SolverConfig
 
 

@@ -1,4 +1,4 @@
 # battery_sim/backend/base.py
-from battery_sim.core.simulation_backend import SimulationBackend
+from battery_sim.core.simulation import SimulationBackend
 
 __all__ = ["SimulationBackend"]

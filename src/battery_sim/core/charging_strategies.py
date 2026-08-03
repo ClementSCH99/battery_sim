@@ -23,7 +23,7 @@ from battery_sim.core.environment import Environment
 from battery_sim.core.solver import SolverConfig
 from battery_sim.core.simulation import Simulation
 from battery_sim.core.degradation import DegradationConfig
-from battery_sim.core.simulation_backend import SimulationBackend
+from battery_sim.core.simulation import SimulationBackend
 
 
 # ============================================================================

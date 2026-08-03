@@ -2,7 +2,7 @@
 
 from battery_sim.core.investigation_tools import OperatingWindowPoint
 from battery_sim.core.model import Model
-from battery_sim.core.simulation_backend import SimulationBackend
+from battery_sim.core.simulation import SimulationBackend
 from battery_sim.core.simulation_session import SimulationSession
 from battery_sim.interface.operating_tools import OperatingToolHandler
 
