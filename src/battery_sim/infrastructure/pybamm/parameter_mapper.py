@@ -1,6 +1,11 @@
 from dataclasses import dataclass
 
 from battery_sim.core.cell import Cell
+from battery_sim.core.cell.capabilities import (
+    CHEMISTRY_PARAMETER_SETS,
+    CHEMISTRY_VARIANTS,
+    EXPLICIT_PARAMETERIZATIONS,
+)
 
 
 @dataclass(frozen=True)
@@ -11,25 +16,8 @@ class ParameterMappingPolicy:
     mapping_policy: str
 
 
-_CHEMISTRY_PARAMETER_SETS = {
-    # Prada2013 is the only installed parameter set explicitly parameterized
-    # for an LFP positive electrode. Marquis2019 uses a LiCoO2 OCP and must not
-    # be labelled as LFP even if a simulation with it happens to converge.
-    "LFP": "Prada2013",
-    "LFP-PRADA": "Prada2013",
-    "NMC": "Chen2020",
-    "NMC-CHEN": "Chen2020",
-    # Validated parameter sets from PyBaMM literature
-    "NMC-ECKER": "Ecker2015",        # Ecker et al. 2015, Kokam SLPB 75106100 pouch
-    "NMC-OKANE": "OKane2022",        # O'Kane et al. 2022, degradation-focused
-    "NMC-MOHTAT": "Mohtat2020",      # Mohtat et al. 2020, pouch cell
-    "NMC-AI": "Ai2020",              # Ai et al. 2020, Enertech pouch cell
-}
-
-_CHEMISTRY_VARIANTS = {
-    "LFP-HP": "LFP",
-    "NMC-HE": "NMC",
-}
+_CHEMISTRY_PARAMETER_SETS = CHEMISTRY_PARAMETER_SETS
+_CHEMISTRY_VARIANTS = CHEMISTRY_VARIANTS
 
 
 def resolve_parameter_mapping(cell: Cell) -> ParameterMappingPolicy:
@@ -55,11 +43,7 @@ def resolve_parameter_mapping(cell: Cell) -> ParameterMappingPolicy:
             f"to '{parameter_set}'."
         )
 
-    explicit_parameterizations = {
-        "LFP-PRADA", "NMC-CHEN", "NMC-ECKER",
-        "NMC-OKANE", "NMC-MOHTAT", "NMC-AI",
-    }
-    if chemistry in explicit_parameterizations:
+    if chemistry in EXPLICIT_PARAMETERIZATIONS:
         mapping_policy = "explicit_parameterization"
     elif normalized_chemistry != chemistry:
         mapping_policy = "chemistry_variant_proxy"

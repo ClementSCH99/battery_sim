@@ -51,7 +51,7 @@ class ComparisonService:
 
         if simulation_run.metadata:
             metrics["solver_time_s"] = simulation_run.metadata.duration_s
-            metrics["success"] = simulation_run.metadata.success
+            metrics["solver_success"] = simulation_run.metadata.success
         if simulation_run.diagnostics:
             metrics["stiffness"] = (
                 "stiff" if simulation_run.diagnostics.is_stiff() else "well-behaved"
@@ -59,7 +59,13 @@ class ComparisonService:
             metrics["avg_iterations"] = simulation_run.diagnostics.avg_newton_iterations
 
         succeeded = simulation_run.is_successful()
+        # ``success`` is retained as a compatibility alias, but now has the
+        # same meaning as the terminal status. Solver convergence is exposed
+        # separately through ``solver_success``.
+        metrics["success"] = succeeded
         metrics["status"] = "succeeded" if succeeded else "failed"
+        metrics["validation_status"] = "passed" if succeeded else "failed"
+        metrics["decision_ready"] = succeeded
         error_messages: list[str] = []
         if simulation_run.errors:
             error_messages = [error.summary() for error in simulation_run.errors]

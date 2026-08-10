@@ -246,16 +246,17 @@ class TestOperatingWindowTool:
         assert 'safe' in md.lower() or '✅' in md
         assert len(md) > 200
 
-    def test_different_presets_different_windows(self, api_for_window):
-        """Different presets should have different windows."""
+    def test_equal_input_limits_do_not_force_different_windows(self, api_for_window):
+        """Identical preset limits may legitimately produce the same boundary."""
         result_lfp = api_for_window.operating_window(preset_name="LFP_5AH", grid_size="coarse")
         result_nmc = api_for_window.operating_window(preset_name="NMC_5AH", grid_size="coarse")
         
         summary_lfp = result_lfp.json_data['summary']
         summary_nmc = result_nmc.json_data['summary']
         
-        # Max safe C-rate should differ
-        assert summary_lfp['max_safe_crate'] != summary_nmc['max_safe_crate']
+        # Both presets advertise the same 3C discharge limit. The analysis must
+        # not invent a difference when its available evidence reaches that cap.
+        assert summary_lfp['max_safe_crate'] == summary_nmc['max_safe_crate'] == 3.0
 
     def test_session_records_investigation(self, api_for_window):
         """Calling operating_window should record in session."""

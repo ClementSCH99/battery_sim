@@ -80,7 +80,13 @@ class ResolutionMixin:
             return Model.SPMe, "SPMe proposed because electrolyte-state signals were requested.", True
         return Model.SPM, "SPM proposed as the least complex model supporting bulk electrical outputs.", True
     @staticmethod
-    def _protocol_proposal(investigation_type: str, cell: Optional[Cell]) -> dict:
+    def _protocol_proposal(
+        investigation_type: str,
+        cell: Optional[Cell],
+        *,
+        c_rate: Optional[float] = None,
+    ) -> dict:
+        resolved_c_rate = 1.0 if c_rate is None else c_rate
         capacity = cell.nominal_capacity_Ah if cell else None
         if investigation_type == "rest":
             return {"kind": "rest", "duration_s": 600.0}
@@ -96,9 +102,9 @@ class ResolutionMixin:
         return {
             "kind": "cc_discharge",
             "initial_soc": 1.0,
-            "current_A": capacity,
-            "c_rate": 1.0,
-            "duration_s": 3600.0,
+            "current_A": None if capacity is None else capacity * resolved_c_rate,
+            "c_rate": resolved_c_rate,
+            "duration_s": 3600.0 / resolved_c_rate,
         }
     @staticmethod
     def _format_markdown(data: dict) -> str:

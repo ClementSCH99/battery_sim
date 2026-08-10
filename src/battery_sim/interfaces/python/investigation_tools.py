@@ -76,7 +76,6 @@ class InvestigationToolHandler:
     _TEMPERATURE_VALUES_C = [0.0, 15.0, 25.0, 40.0, 55.0]
     _SUPPORTED_SENSITIVITY_PARAMETERS = {
         "temperature_C",
-        "nominal_capacity_Ah",
     }
 
     def __init__(

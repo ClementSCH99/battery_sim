@@ -136,5 +136,10 @@ class ChargingStrategyBuilder:
         
         if strategy_names is None:
             return all_strategies
-        
-        return {name: all_strategies[name] for name in strategy_names if name in all_strategies}
+        unknown = sorted(set(strategy_names) - set(all_strategies))
+        if unknown:
+            available = ", ".join(all_strategies)
+            raise ValueError(
+                f"Unknown charging strategies: {', '.join(unknown)}. Available: {available}"
+            )
+        return {name: all_strategies[name] for name in strategy_names}

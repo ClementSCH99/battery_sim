@@ -23,7 +23,12 @@ class ExperimentPlan:
 
     @property
     def ready_for_execution(self) -> bool:
-        return not self.missing_inputs
+        return (
+            self.status == "draft_ready"
+            and not self.missing_inputs
+            and self.execution.get("direct_core_tool_supported") is True
+            and self.execution.get("tool") is not None
+        )
 
     @property
     def requires_confirmation(self) -> bool:

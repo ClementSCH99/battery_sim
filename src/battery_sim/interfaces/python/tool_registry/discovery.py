@@ -67,6 +67,7 @@ class DiscoveryToolsMixin:
         investigation_type: Optional[str] = None,
         model: Optional[str] = None,
         temperature_C: Optional[float] = None,
+        c_rate: Optional[float] = None,
         requested_signals: Optional[List[str]] = None,
     ) -> DualFormatResult:
         """Propose assumptions, model, protocol and signals before execution."""
@@ -76,6 +77,7 @@ class DiscoveryToolsMixin:
             investigation_type=investigation_type,
             model=model,
             temperature_C=temperature_C,
+            c_rate=c_rate,
             requested_signals=requested_signals,
         )
     @agent_tool(

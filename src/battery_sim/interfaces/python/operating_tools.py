@@ -124,6 +124,16 @@ class OperatingToolHandler:
 
         temp_curve = enrich(curves["max_crate_vs_temperature"])
         soc_curve = enrich(curves["max_crate_vs_soc"])
+        curve_support = {
+            "temperature": {
+                "status": "supported" if len(temp_curve) >= 2 else "insufficient_curve_support",
+                "point_count": len(temp_curve),
+            },
+            "soc": {
+                "status": "supported" if len(soc_curve) >= 2 else "insufficient_curve_support",
+                "point_count": len(soc_curve),
+            },
+        }
         json_data = {
             "type": "derating_curves",
             "maturity": "experimental",
@@ -134,6 +144,8 @@ class OperatingToolHandler:
             "grid_size": grid_size,
             "max_crate_vs_temperature": temp_curve,
             "max_crate_vs_soc": soc_curve,
+            "curve_support": curve_support,
+            "decision_ready": all(item["status"] == "supported" for item in curve_support.values()),
             "source_point_count": analysis["total_points"],
             "evidence": self._evidence(),
         }

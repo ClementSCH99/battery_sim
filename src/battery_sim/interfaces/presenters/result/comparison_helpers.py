@@ -5,6 +5,12 @@ from typing import Any, Dict, List, Optional
 from battery_sim.interfaces.presenters.result.model import DualFormatResult
 
 class ComparisonHelpersMixin:
+    MINIMIZED_METRICS = {"solver_time_s", "critical_errors", "warnings"}
+
+    @classmethod
+    def _higher_is_better(cls, metric_name: str) -> bool:
+        return metric_name not in cls.MINIMIZED_METRICS
+
     @staticmethod
     def _compute_best_for(
         metrics_dict: Dict[str, Any],
@@ -25,7 +31,8 @@ class ComparisonHelpersMixin:
                 numeric_values = [(s, v) for s, v in values.items() if v is not None]
 
                 if numeric_values:
-                    best_val = max(numeric_values, key=lambda x: x[1] if metric_name not in ['solver_time_s'] else -x[1])
+                    chooser = max if ComparisonHelpersMixin._higher_is_better(metric_name) else min
+                    best_val = chooser(numeric_values, key=lambda item: item[1])
                     best_for[metric_name] = best_val[0]
 
         # EV metrics

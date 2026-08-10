@@ -32,6 +32,7 @@ class ChargingStrategyMetrics:
     timing_observed: bool = True
     energy_observed: bool = True
     capacity_fade_observed: bool = True
+    resolved_protocol: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

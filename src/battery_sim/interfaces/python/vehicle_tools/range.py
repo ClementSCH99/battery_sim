@@ -83,6 +83,10 @@ class RangeMixin:
             "maturity": "experimental",
             "preset": preset_name,
             "cycle": normalized_cycle,
+            "profile_name": f"synthetic_{normalized_cycle.lower()}",
+            "profile_kind": "synthetic_normalized_power_trace",
+            "regulatory_cycle": False,
+            "temperature_effect_applied": False,
             "pack_configuration": {
                 "n_series": n_series,
                 "n_parallel": n_parallel,

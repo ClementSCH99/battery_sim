@@ -63,7 +63,7 @@ class ChargingStrategyEvaluator:
         
         # Build discharge protocol (simple 1C discharge to cutoff)
         discharge_protocol = Protocol(steps=[
-            ConstantCurrent(current_A=discharge_current_A, _duration_s=3600),  # 1-hour max
+            ConstantCurrent(current_A=discharge_current_A, _duration_s=2880),
             Rest(_duration_s=600),  # Post-discharge rest
         ])
         
@@ -89,7 +89,7 @@ class ChargingStrategyEvaluator:
             protocol=cycling_protocol,
             environment=environment,
             degradation=degradation_config,
-            solver_config=SolverConfig(),
+            solver_config=SolverConfig(initial_soc=0.2),
         )
         
         # Run simulation
@@ -134,20 +134,23 @@ class ChargingStrategyEvaluator:
                     if series.time_s:
                         time_vector = series.time_s
                         break
-            total_time_s = float(time_vector[-1]) if isinstance(time_vector, (list, tuple, np.ndarray)) and len(time_vector) > 0 else 0.0
-            charge_time_min = (total_time_s / 2) / 60 if total_time_s > 0 else 0  # Rough estimate
-            discharge_time_min = (total_time_s / 2) / 60 if total_time_s > 0 else 0
-            timing_observed = total_time_s > 0
+            current = result.current()
+            if current is not None and len(current.time_s) > 1:
+                dt = np.diff(np.asarray(current.time_s, dtype=float))
+                samples = np.asarray(current.values[:-1], dtype=float)
+                charge_time_min = float(np.sum(dt[samples < 0])) / 60.0
+                discharge_time_min = float(np.sum(dt[samples > 0])) / 60.0
+                timing_observed = charge_time_min > 0 and discharge_time_min > 0
             
             # Energy from voltage/current product (approximation)
-            charge_energy_fn = getattr(result, "charge_energy", None)
+            charge_energy_fn = getattr(result, "charged_energy", None)
             if callable(charge_energy_fn):
                 charge_energy_value = charge_energy_fn()
                 if isinstance(charge_energy_value, (int, float, np.floating)):
                     charge_energy_Wh = float(charge_energy_value)
                     energy_observed = True
 
-            discharge_energy_fn = getattr(result, "discharge_energy", None)
+            discharge_energy_fn = getattr(result, "discharged_energy", None)
             if callable(discharge_energy_fn):
                 discharge_energy_value = discharge_energy_fn()
                 if isinstance(discharge_energy_value, (int, float, np.floating)):
@@ -194,8 +197,25 @@ class ChargingStrategyEvaluator:
             timing_observed=timing_observed,
             energy_observed=energy_observed,
             capacity_fade_observed=capacity_fade_observed,
+            resolved_protocol=self._protocol_data(charge_protocol),
         )
     
+    @staticmethod
+    def _protocol_data(protocol: Protocol) -> dict:
+        return {
+            "steps": [
+                {
+                    "kind": type(step).__name__,
+                    **{
+                        key: value
+                        for key, value in vars(step).items()
+                        if isinstance(value, (str, int, float, bool)) or value is None
+                    },
+                }
+                for step in protocol.steps
+            ]
+        }
+
     def compare(
         self,
         cell: Cell,

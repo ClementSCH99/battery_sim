@@ -24,6 +24,7 @@ def plan_experiment(
     investigation_type: str | None = None,
     model: str | None = None,
     temperature_C: float | None = None,
+    c_rate: float | None = None,
     requested_signals: list[str] | None = None,
 ) -> str:
     """Build a reviewable electrochemical experiment plan without running it."""
@@ -33,6 +34,8 @@ def plan_experiment(
         _validate_preset(preset_name)
     if temperature_C is not None:
         _validate_temperature(temperature_C)
+    if c_rate is not None:
+        _validate_positive("c_rate", c_rate)
     if requested_signals is not None:
         _validate_string_list("requested_signals", requested_signals)
     return _result_json(
@@ -42,6 +45,7 @@ def plan_experiment(
             investigation_type=investigation_type,
             model=model,
             temperature_C=temperature_C,
+            c_rate=c_rate,
             requested_signals=requested_signals,
         )
     )
@@ -98,6 +102,10 @@ def run_simulation(
     current_A: float | None = None,
     duration_s: float | None = None,
     temperature_C: float = 25.0,
+    model: str | None = None,
+    initial_soc: float | None = None,
+    thermal_mode: str | None = None,
+    requested_signals: list[str] | None = None,
 ) -> str:
     """Run a single battery simulation and return performance metrics."""
     _validate_preset(preset_name)
@@ -108,11 +116,19 @@ def run_simulation(
             raise ValueError("current_A must be non-zero when provided")
     if duration_s is not None:
         _validate_positive("duration_s", duration_s)
+    if initial_soc is not None and not 0.0 <= initial_soc <= 1.0:
+        raise ValueError("initial_soc must be between 0 and 1")
+    if requested_signals is not None:
+        _validate_string_list("requested_signals", requested_signals)
     result = api.run_simulation(
         preset_name=preset_name,
         current_A=current_A,
         duration_s=duration_s,
         temperature_C=temperature_C,
+        model=model,
+        initial_soc=initial_soc,
+        thermal_mode=thermal_mode,
+        requested_signals=requested_signals,
     )
     return _result_json(result)
 
@@ -124,6 +140,8 @@ def compare_presets(
 ) -> str:
     """Compare multiple cell chemistry presets side-by-side."""
     _validate_string_list("preset_names", preset_names)
+    if len(set(preset_names)) != len(preset_names):
+        raise ValueError("preset_names must not contain duplicates")
     for preset_name in preset_names:
         _validate_preset(preset_name)
     if environment_temp_C is not None:

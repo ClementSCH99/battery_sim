@@ -84,6 +84,9 @@ class HelpersMixin:
             "maturity": "experimental",
             "preset": preset_name,
             "error": message,
+            "decision_ready": False,
+            "passes_warranty": None,
+            "risk_level": None,
             "usage_profile": self._usage_data(usage),
             "evidence": {"validation_status": "no warranty conclusion available"},
         }

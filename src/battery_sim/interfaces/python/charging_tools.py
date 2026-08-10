@@ -217,7 +217,7 @@ class ChargingToolHandler:
                 else "No successful strategy produced an observed charge duration"
             ),
             "evidence": {
-                "timing": "total simulation time split equally between charge and discharge (approximation)",
+                "timing": "observed from the sign of the simulated current time series",
                 "aging": "reported only when a capacity-fade signal is available",
                 "failed_runs_excluded_from_rankings": True,
                 "validation_status": "not validated against charging test data",
@@ -266,6 +266,7 @@ class ChargingToolHandler:
     def _strategy_row(metric) -> dict:
         return {
             "strategy_name": metric.strategy_name,
+            "resolved_protocol": metric.resolved_protocol,
             "status": metric.status,
             "error": metric.error or None,
             "charge_time_min": metric.charge_time_min if metric.timing_observed else None,

@@ -31,6 +31,10 @@ def test_complete_bulk_discharge_plan_is_reviewable_but_not_executed():
         "current_A": 2.3,
         "duration_s": 3600.0,
         "temperature_C": 25.0,
+        "model": "single_particle",
+        "initial_soc": 1.0,
+        "thermal_mode": "isothermal",
+        "requested_signals": ["voltage", "current", "soc"],
     }
     assert "result" not in data
 
@@ -45,8 +49,9 @@ def test_electrolyte_signal_selects_spme_and_blocks_simple_execution_adapter():
 
     assert data["configuration"]["model"] == "single_particle_electrolyte"
     assert "electrolyte" in data["model_rationale"].lower()
-    assert data["execution"]["direct_core_tool_supported"] is False
-    assert data["execution"]["arguments"] is None
+    assert data["execution"]["direct_core_tool_supported"] is True
+    assert data["execution"]["arguments"]["model"] == "single_particle_electrolyte"
+    assert data["execution"]["arguments"]["requested_signals"] == ["voltage", "electrolyte_concentration"]
 
 
 def test_thermal_signal_proposes_lumped_thermal_mode():

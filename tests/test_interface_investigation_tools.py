@@ -82,8 +82,8 @@ def test_capacity_sensitivity_range_is_relative_to_selected_cell():
 def test_sensitivity_uses_requested_baseline_ambient_temperature():
     sensitivity_service = Mock()
     sensitivity_service.analyze_single_parameter.return_value = SensitivityResult(
-        parameter_name="nominal_capacity_Ah",
-        parameter_values=[4.0, 5.0, 6.0],
+        parameter_name="temperature_C",
+        parameter_values=[0.0, 25.0, 55.0],
         metric_name="peak_power_W",
         metric_values=[10.0, 11.0, 12.0],
     )
@@ -91,7 +91,7 @@ def test_sensitivity_uses_requested_baseline_ambient_temperature():
 
     result = handler.sensitivity_analysis(
         "LFP_5AH",
-        ["nominal_capacity_Ah"],
+        ["temperature_C"],
         temperature_C=10.0,
     )
 

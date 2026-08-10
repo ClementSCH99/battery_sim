@@ -58,6 +58,36 @@ class DiscoveryToolHandler:
         self._catalog_provider = catalog_provider
 
     def describe(self) -> DualFormatResult:
+        tools = self._catalog_provider()
+        by_name = {tool["name"]: tool for tool in tools}
+        by_name["pack_sizing"]["parameters"] = {
+            "preset_name": {"type": "str", "required": True},
+            "target_energy_kWh": {"type": "float", "required": False, "default": 60.0},
+            "voltage_range_min_V": {"type": "float", "required": False, "default": 300.0},
+            "voltage_range_max_V": {"type": "float", "required": False, "default": 400.0},
+        }
+        by_name["optimize_charging"]["parameters"] = {
+            "preset_name": {"type": "str", "required": True},
+            "charge_current_min_A": {"type": "float", "required": False, "default": 1.0},
+            "charge_current_max_A": {"type": "float", "required": False, "default": 10.0},
+            "n_sweep_points": {"type": "int", "required": False, "default": 5},
+            "temperature_C": {"type": "float", "required": False, "default": 25.0},
+        }
+        by_name["sensitivity_analysis"]["parameters"]["parameters"].update({
+            "allowed_values": ["temperature_C"],
+            "response_metric": "peak_power_W",
+        })
+        by_name["plan_experiment"]["parameters"]["model"]["allowed_values"] = [
+            "single_particle", "single_particle_electrolyte", "doyle_fuller_newman"
+        ]
+        by_name["plan_experiment"]["parameters"]["requested_signals"]["allowed_values"] = [
+            "time", "voltage", "current", "power", "energy", "soc", "soh",
+            "capacity", "temperature", "cell_temperature", "heat_generation",
+            "internal_resistance", "electrolyte_concentration", "electrolyte_potential",
+        ]
+        by_name["estimate_range"]["parameters"]["cycle_name"]["allowed_values"] = [
+            "WLTP", "WLTP_CLASS3", "US06", "UDDS"
+        ]
         workflow = [
             "describe_api",
             "list_presets",
@@ -84,7 +114,7 @@ class DiscoveryToolHandler:
                 "type": "api_description",
                 "default_tool_profile": "core_first",
                 "recommended_workflow": workflow,
-                "tools": self._catalog_provider(),
+                "tools": tools,
             },
             markdown_text=markdown,
             interpretation_hints=[

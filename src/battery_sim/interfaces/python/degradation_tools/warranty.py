@@ -79,6 +79,7 @@ class WarrantyMixin:
             "preset": preset_name,
             "temperature_C": temperature_C,
             "passes_warranty": passes,
+            "decision_ready": False,
             "status": status,
             "predicted_soh_at_warranty_end_pct": predicted_soh * 100.0,
             "warranty_soh_threshold_pct": warranty_soh_threshold * 100.0,

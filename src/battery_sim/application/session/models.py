@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 import json
+from uuid import uuid4
 
 @dataclass
 class InvestigationRun:
@@ -29,11 +30,17 @@ class InvestigationRun:
     
     # Optional: insights that the investigation revealed
     key_findings: List[str] = field(default_factory=list)
+    event_id: str = field(default_factory=lambda: str(uuid4()))
+    parent_event_id: Optional[str] = None
+    status: str = "success"
     
     def to_dict(self) -> Dict[str, Any]:
         """JSON serialization for logging."""
         return {
             'type': self.investigation_type,
+            'event_id': self.event_id,
+            'parent_event_id': self.parent_event_id,
+            'status': self.status,
             'timestamp': self.timestamp.isoformat(),
             'parameters': self.parameters,
             'summary': self.result_summary,

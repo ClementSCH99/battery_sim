@@ -40,6 +40,10 @@ class SimulationToolsMixin:
         current_A: Optional[float] = None,
         duration_s: Optional[float] = None,
         temperature_C: float = 25.0,
+        model: Optional[str] = None,
+        initial_soc: Optional[float] = None,
+        thermal_mode: Optional[str] = None,
+        requested_signals: Optional[List[str]] = None,
     ) -> DualFormatResult:
         """
         Run a single battery simulation and return key performance metrics.
@@ -58,6 +62,10 @@ class SimulationToolsMixin:
             current_A=current_A,
             duration_s=duration_s,
             temperature_C=temperature_C,
+            model=model,
+            initial_soc=initial_soc,
+            thermal_mode=thermal_mode,
+            requested_signals=requested_signals,
         )
     @agent_tool(
         description="Experimentally extrapolate an aging trend from a short simulated cycle window",

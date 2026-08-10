@@ -47,10 +47,11 @@ class ComparisonEVMixin:
                 numeric_values = [v for v in values.values() if v is not None]
 
                 if numeric_values:
-                    best_val = max(numeric_values) if metric_name not in ['solver_time_s'] else min(numeric_values)
+                    higher_is_better = ComparisonHelpersMixin._higher_is_better(metric_name)
+                    best_val = max(numeric_values) if higher_is_better else min(numeric_values)
                     best_scenario = [s for s, v in values.items() if v == best_val][0]
 
-                    worst_val = min(numeric_values) if metric_name not in ['solver_time_s'] else max(numeric_values)
+                    worst_val = min(numeric_values) if higher_is_better else max(numeric_values)
                     worst_scenario = [s for s, v in values.items() if v == worst_val][0]
 
                     json_data['metrics'][metric_name] = {

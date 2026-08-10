@@ -359,7 +359,9 @@ class TestMCPBoundaryValidation:
         assert payload["maturity"] == "experimental"
         assert payload["error_code"] == "validation_error"
         assert payload["retryable"] is False
-        assert payload["contract"]["schema_version"] == "1.0"
+        assert payload["contract"]["schema_version"] == "2.0"
+        assert payload["ok"] is False
+        assert payload["response"]["status"] == "error"
 
 
 class TestMCPResponseContract:

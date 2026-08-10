@@ -7,6 +7,7 @@ from battery_sim.experimental.system.drive_cycles import get_drive_cycle, scale_
 from battery_sim.experimental.pack.model import PackConfiguration, PackSizer
 from battery_sim.interfaces.presenters.result import DualFormatResult
 from battery_sim.application.session import SimulationSession
+from battery_sim.core.cell.capabilities import describe_parameter_capability
 DRIVE_CYCLE_DISTANCES_KM = {
     "WLTP": 23.3,
     "WLTP_CLASS3": 23.3,
@@ -50,6 +51,7 @@ class SelectionMixin:
         rankings = []
         for preset_name in CellPresets.list_all():
             preset = CellPresets.get(preset_name)
+            simulation_capability = describe_parameter_capability(preset.cell)
             try:
                 config = PackSizer.size_pack(preset, target_energy_kWh)
             except Exception as exc:
@@ -63,6 +65,7 @@ class SelectionMixin:
                         "recommendation": f"Configuration failed: {type(exc).__name__}: {exc}",
                         "data_quality": {"configuration": "failed"},
                         "pack_config": None,
+                        "ranking_eligible": False,
                     }
                 )
                 continue
@@ -105,7 +108,8 @@ class SelectionMixin:
                 and config.pack_cost_usd <= cost_budget_usd
             )
             evidence_complete = (
-                packaging["mass"] == "available"
+                simulation_capability["supports_simulation"]
+                and packaging["mass"] == "available"
                 and preset.cycle_life_cycles > 0
                 and (volume_budget_L is None or packaging["volume"] == "available")
                 and (cost_budget_usd is None or packaging["cost"] == "available")
@@ -123,8 +127,19 @@ class SelectionMixin:
                 )
             )
             available_scores = [score for score in scores.values() if score is not None]
-            total_score = sum(available_scores) / len(available_scores)
             missing = [name for name, value in scores.items() if value is None]
+            required_dimensions = {"energy", "power", "lifetime"}
+            if cost_budget_usd is not None:
+                required_dimensions.add("cost")
+            if charge_time_min is not None:
+                required_dimensions.add("charge")
+            missing_required = sorted(name for name in required_dimensions if scores[name] is None)
+            ranking_eligible = (
+                simulation_capability["supports_simulation"]
+                and not missing_required
+            )
+            raw_available_score = sum(available_scores) / len(available_scores)
+            total_score = raw_available_score if ranking_eligible else None
             recommendation = (
                 "Meets this assumption-based screening"
                 if meets
@@ -134,7 +149,10 @@ class SelectionMixin:
                 {
                     "preset_name": preset_name,
                     "chemistry": preset.chemistry,
-                    "total_score": round(total_score, 1),
+                    "total_score": round(total_score, 1) if total_score is not None else None,
+                    "raw_score_on_available_evidence": round(raw_available_score, 1),
+                    "ranking_eligible": ranking_eligible,
+                    "simulation_capability": simulation_capability,
                     "scores": {
                         name: round(value, 1) if value is not None else None
                         for name, value in scores.items()
@@ -142,6 +160,7 @@ class SelectionMixin:
                     "meets_requirements": meets,
                     "recommendation": recommendation,
                     "missing_score_dimensions": missing,
+                    "missing_required_dimensions": missing_required,
                     "data_quality": packaging,
                     "estimated_power_capability_kW": power_capability_kW,
                     "pack_config": {
@@ -153,12 +172,18 @@ class SelectionMixin:
         rankings.sort(
             key=lambda item: (
                 item["meets_requirements"],
+                item.get("ranking_eligible", False),
                 item["total_score"] if item["total_score"] is not None else -1,
             ),
             reverse=True,
         )
-        for index, ranking in enumerate(rankings, start=1):
-            ranking["rank"] = index
+        rank = 0
+        for ranking in rankings:
+            if ranking.get("ranking_eligible", False):
+                rank += 1
+                ranking["rank"] = rank
+            else:
+                ranking["rank"] = None
 
         requirements = {
             "range_km": range_km,
@@ -180,7 +205,7 @@ class SelectionMixin:
                 "usable_energy_fraction": self._USABLE_ENERGY_FRACTION,
                 "full_equivalent_cycles_per_year": self._FULL_EQUIVALENT_CYCLES_PER_YEAR,
                 "power_capability": "nominal pack energy multiplied by preset max discharge C-rate",
-                "weights": "equal average across available score dimensions",
+                "weights": "equal average only when every required score dimension is available",
             },
             "evidence": {
                 "validation_status": "decision screening only; no cell test correlation",

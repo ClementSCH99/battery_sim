@@ -10,6 +10,7 @@ DOCS_ROOT = PROJECT_ROOT / "docs"
 CANONICAL_ROOT_DOCUMENTS = {
     "README.md",
     "architecture.md",
+    "mcp_black_box_investigation.md",
     "physics_and_validation.md",
     "project_direction.md",
     "roadmap.md",

@@ -103,8 +103,8 @@ class ResultMetricsMixin:
 
         charge_energy = 0.0
         discharge_energy = 0.0
-        for index, value in enumerate(power.values):
-            duration = power.time_s[index] if index > 0 else 0
+        for index, value in enumerate(power.values[:-1]):
+            duration = power.time_s[index + 1] - power.time_s[index]
             if value < 0:
                 charge_energy += abs(value) * duration
             else:
@@ -184,7 +184,9 @@ class ResultMetricsMixin:
         if charged is None or discharged is None:
             return None
         if charged <= 0:
-            return 100.0 if discharged > 0 else None
+            # A discharge-only experiment has no round trip against which an
+            # efficiency can be calculated. Returning 100% was misleading.
+            return None
         return discharged / charged * 100.0
 
     def efficiency(self) -> Optional[float]:

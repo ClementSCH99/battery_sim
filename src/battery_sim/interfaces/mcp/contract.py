@@ -2,6 +2,7 @@
 
 import json
 import math
+import time
 from dataclasses import fields
 from functools import lru_cache, wraps
 from typing import Any, Callable, Optional
@@ -156,15 +157,104 @@ def _contract(tool_name: str, payload: Optional[dict[str, Any]] = None) -> dict[
             else "exploratory screening only; not validated decision evidence"
         )
     return {
-        "schema_version": "1.0",
+        "schema_version": "2.0",
         "maturity": maturity,
         "domain_of_validity": domain,
         "assumptions": _response_assumptions(tool_name, payload),
     }
 
+def _failure_from_payload(payload: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """Normalize legacy domain failures without hiding their original fields."""
+    error_value = payload.get("error")
+    if error_value:
+        return {
+            "code": payload.get("error_code", "domain_error"),
+            "type": payload.get("error_type", "DomainError"),
+            "message": payload.get("message", str(error_value)),
+            "retryable": bool(payload.get("retryable", False)),
+        }
+    metrics = payload.get("metrics")
+    if isinstance(metrics, dict) and (
+        metrics.get("status") == "failed"
+        or int(metrics.get("critical_errors", 0) or 0) > 0
+    ):
+        messages = metrics.get("errors") or ["Simulation result failed validation"]
+        return {
+            "code": "result_validation_failed",
+            "type": "ResultValidationError",
+            "message": "; ".join(str(item) for item in messages),
+            "retryable": False,
+        }
+    if str(payload.get("type", "")).endswith("_error"):
+        return {
+            "code": "domain_error",
+            "type": "DomainError",
+            "message": str(payload.get("message") or "Tool returned an error result"),
+            "retryable": False,
+        }
+    return None
+
+def _attach_response_envelope(tool_name: str, payload: dict[str, Any]) -> dict[str, Any]:
+    payload.setdefault("tool", tool_name)
+    payload.setdefault("maturity", _tool_maturity().get(tool_name, "experimental"))
+    payload.setdefault("contract", _contract(tool_name, payload))
+    failure = _failure_from_payload(payload)
+    payload["ok"] = failure is None
+    payload["response"] = {
+        "schema_version": "2.0",
+        "status": "success" if failure is None else "error",
+        "error": failure,
+        "warnings": payload.get("warnings", []),
+        "diagnostics": payload.get("diagnostics", {}),
+    }
+    return payload
+
+_SELF_RECORDING_TOOLS = {
+    "run_simulation", "compare_test_data", "compare_presets",
+    "sensitivity_analysis", "predict_lifetime", "pack_sizing",
+    "cell_selection_wizard", "warranty_analysis", "optimize_charging",
+    "operating_window", "derating_curves", "estimate_range",
+    "compare_charging_strategies",
+}
+
+def _record_boundary_call(
+    tool_name: str,
+    parameters: dict[str, Any],
+    payload: dict[str, Any],
+    duration_s: float,
+    history_start: int,
+) -> None:
+    if tool_name == "get_session_summary":
+        return
+    new_events = api.session.investigation_history[history_start:]
+    if tool_name in _SELF_RECORDING_TOOLS:
+        roots = [event for event in new_events if event.investigation_type == tool_name]
+        if roots:
+            root = roots[-1]
+            root.status = payload.get("response", {}).get("status", "unknown")
+            root.result_summary = payload
+            for event in new_events:
+                if event is not root and event.parent_event_id is None:
+                    event.parent_event_id = root.event_id
+            return
+    api.session.record_investigation(
+        investigation_type=tool_name,
+        parameters=parameters,
+        result_summary=payload,
+        result_markdown=f"MCP call {tool_name}: {payload.get('response', {}).get('status', 'unknown')}",
+        duration_seconds=duration_s,
+        key_findings=[],
+        status=payload.get("response", {}).get("status", "unknown"),
+    )
+
 def _tool_error_boundary(func: Callable[..., str]) -> Callable[..., str]:
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> str:
+        started_at = time.perf_counter()
+        history_start = api.session.num_investigations()
+        parameter_names = func.__code__.co_varnames[:func.__code__.co_argcount]
+        parameters = dict(zip(parameter_names, args))
+        parameters.update(kwargs)
         try:
             raw_result = func(*args, **kwargs)
             try:
@@ -173,27 +263,30 @@ def _tool_error_boundary(func: Callable[..., str]) -> Callable[..., str]:
                 return raw_result
             if not isinstance(payload, dict):
                 return raw_result
-            payload.setdefault("tool", func.__name__)
-            payload.setdefault("maturity", _tool_maturity().get(func.__name__, "experimental"))
-            payload.setdefault("contract", _contract(func.__name__, payload))
+            payload = _attach_response_envelope(func.__name__, payload)
+            _record_boundary_call(
+                func.__name__, parameters, payload,
+                time.perf_counter() - started_at, history_start,
+            )
             return json.dumps(payload, indent=2, default=str)
         except Exception as exc:  # noqa: BLE001 - convert to MCP-safe error payload
             error_type = "ValidationError" if isinstance(exc, ValueError) else exc.__class__.__name__
             error_code = "validation_error" if isinstance(exc, ValueError) else "execution_error"
-            return json.dumps(
-                {
-                    "error": True,
-                    "error_type": error_type,
-                    "error_code": error_code,
-                    "message": str(exc),
-                    "tool": func.__name__,
-                    "maturity": _tool_maturity().get(func.__name__, "experimental"),
-                    "retryable": False,
-                    "contract": _contract(func.__name__),
-                },
-                indent=2,
-                default=str,
+            payload = _attach_response_envelope(func.__name__, {
+                "error": True,
+                "error_type": error_type,
+                "error_code": error_code,
+                "message": str(exc),
+                "tool": func.__name__,
+                "maturity": _tool_maturity().get(func.__name__, "experimental"),
+                "retryable": False,
+                "contract": _contract(func.__name__),
+            })
+            _record_boundary_call(
+                func.__name__, parameters, payload,
+                time.perf_counter() - started_at, history_start,
             )
+            return json.dumps(payload, indent=2, default=str)
 
     return wrapper
 

@@ -86,7 +86,7 @@ def test_non_declining_capacity_does_not_create_a_fake_million_cycle_life():
 
     assert result.json_data["estimated_cycles_to_eol"] is None
     assert result.json_data["estimated_years_to_eol"] is None
-    assert result.json_data["projection"]["status"] == "no_decline_observed"
+    assert result.json_data["projection"]["status"] == "insufficient_evidence"
 
 
 def test_warranty_uses_profile_and_first_expiring_time_or_distance_limit():

@@ -31,6 +31,8 @@ class RecordingMixin:
         result_markdown: str,
         duration_seconds: float = 0,
         key_findings: Optional[List[str]] = None,
+        parent_event_id: Optional[str] = None,
+        status: str = "success",
     ) -> InvestigationRun:
         """
         Record an investigation that was run.
@@ -58,6 +60,8 @@ class RecordingMixin:
             result_markdown=result_markdown,
             duration_seconds=duration_seconds,
             key_findings=key_findings or [],
+            parent_event_id=parent_event_id,
+            status=status,
         )
 
         self.investigation_history.append(run)

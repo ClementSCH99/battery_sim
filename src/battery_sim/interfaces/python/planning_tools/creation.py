@@ -21,6 +21,7 @@ class CreationMixin:
         investigation_type: Optional[str] = None,
         model: Optional[str] = None,
         temperature_C: Optional[float] = None,
+        c_rate: Optional[float] = None,
         requested_signals: Optional[list[str]] = None,
     ) -> DualFormatResult:
         question = question.strip()
@@ -52,6 +53,9 @@ class CreationMixin:
             resolved_sources,
             conflicts,
         )
+        c_rate = self._resolve_input(
+            "c_rate", c_rate, interpretation, resolved_sources, conflicts
+        )
         requested_signals = self._resolve_input(
             "requested_signals",
             requested_signals,
@@ -79,6 +83,8 @@ class CreationMixin:
             raise ValueError(f"investigation_type must be one of: {choices}")
         if temperature_C is not None and not -40.0 <= temperature_C <= 100.0:
             raise ValueError("temperature_C must be between -40 and 100")
+        if c_rate is not None and c_rate <= 0:
+            raise ValueError("c_rate must be > 0")
 
         signals = self._resolve_signals(requested_signals)
         if requested_signals is None:
@@ -137,7 +143,7 @@ class CreationMixin:
                 {"field": "thermal_mode", "value": "lumped", "reason": "thermal signal requested"}
             )
 
-        protocol = self._protocol_proposal(investigation_type, cell)
+        protocol = self._protocol_proposal(investigation_type, cell, c_rate=c_rate)
         proposed_defaults.append(
             {
                 "field": "protocol",
@@ -147,8 +153,6 @@ class CreationMixin:
         )
         execution_supported = (
             investigation_type == "cc_discharge"
-            and selected_model is self._execution_model
-            and not thermal_requested
             and cell is not None
         )
         execution_arguments = None
@@ -158,6 +162,10 @@ class CreationMixin:
                 "current_A": protocol["current_A"],
                 "duration_s": protocol["duration_s"],
                 "temperature_C": temperature_C,
+                "model": selected_model.value,
+                "initial_soc": protocol["initial_soc"],
+                "thermal_mode": thermal_mode,
+                "requested_signals": [signal.value for signal in signals],
             }
         if conflicts:
             status = "conflict"

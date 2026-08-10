@@ -79,6 +79,10 @@ class QuestionInterpreter:
         r"|(?P<degree_value>[+-]?\d+(?:[.,]\d+)?)\s*°\s*C\b",
         re.IGNORECASE,
     )
+    _C_RATE_PATTERNS = (
+        re.compile(r"\bC\s*/\s*(?P<divisor>\d+(?:[.,]\d+)?)\b", re.IGNORECASE),
+        re.compile(r"(?<![\N{DEGREE SIGN}\w])(?P<rate>\d+(?:[.,]\d+)?)\s*C\b", re.IGNORECASE),
+    )
     _SIGNAL_PATTERNS = (
         (Signal.ELECTROLYTE_CONCENTRATION, r"concentration\s+(?:de\s+l['’])?électrolyte|electrolyte\s+concentration"),
         (Signal.ELECTROLYTE_POTENTIAL, r"potentiel\s+(?:de\s+l['’])?électrolyte|electrolyte\s+potential"),
@@ -105,6 +109,7 @@ class QuestionInterpreter:
             fields,
         )
         self._extract_temperature(question, fields)
+        self._extract_c_rate(question, fields)
         self._extract_signals(question, fields)
         return QuestionInterpretation(fields=fields)
 
@@ -151,9 +156,37 @@ class QuestionInterpreter:
         match = self._TEMPERATURE_PATTERN.search(question)
         if not match:
             return
+        if "\N{DEGREE SIGN}" not in match.group(0) and not match.group(0).casefold().startswith("temp"):
+            # Bare 1C/2C after a preposition is a C-rate, not a temperature.
+            return
         raw_value = match.group("context_value") or match.group("degree_value")
         value = float(raw_value.replace(",", "."))
         fields["temperature_C"] = Evidence(
+            value=value,
+            text=match.group(0),
+            start=match.start(),
+            end=match.end(),
+        )
+
+    def _extract_c_rate(self, question: str, fields: dict[str, Evidence]) -> None:
+        matches: list[tuple[int, float, re.Match]] = []
+        for pattern in self._C_RATE_PATTERNS:
+            match = pattern.search(question)
+            if not match:
+                continue
+            divisor = match.groupdict().get("divisor")
+            if divisor:
+                divisor_value = float(divisor.replace(",", "."))
+                if divisor_value <= 0:
+                    continue
+                value = 1.0 / divisor_value
+            else:
+                value = float(match.group("rate").replace(",", "."))
+            matches.append((match.start(), value, match))
+        if not matches:
+            return
+        _, value, match = sorted(matches, key=lambda item: item[0])[0]
+        fields["c_rate"] = Evidence(
             value=value,
             text=match.group(0),
             start=match.start(),

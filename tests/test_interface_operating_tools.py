@@ -76,6 +76,11 @@ def test_derating_power_is_cell_watts_and_not_pack_kw():
     result = handler.derating_curves("LFP_5AH")
 
     point = result.json_data["max_crate_vs_temperature"][0]
+    support = result.json_data["curve_support"]
     assert point["cell_power_W"] == 24.0
+    assert support["temperature"]["point_count"] == 1
+    assert support["temperature"]["status"] == "insufficient_curve_support"
+    assert support["soc"]["point_count"] == 1
+    assert result.json_data["decision_ready"] is False
     assert "24.0 W" in result.markdown_text
     assert "production" in result.markdown_text

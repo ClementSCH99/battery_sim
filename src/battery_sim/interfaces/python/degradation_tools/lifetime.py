@@ -112,25 +112,38 @@ class LifetimeMixin:
         fitted = slope_Ah_per_cycle * cycles + intercept_Ah
         residual_sum = float(np.sum((capacities - fitted) ** 2))
         total_sum = float(np.sum((capacities - np.mean(capacities)) ** 2))
-        r_squared = 1.0 - residual_sum / total_sum if total_sum > 0 else None
         initial_capacity_Ah = float(capacities[0])
+        variance_floor = max(abs(initial_capacity_Ah) * 1e-8, 1e-10) ** 2 * len(capacities)
+        r_squared = 1.0 - residual_sum / total_sum if total_sum > variance_floor else None
         eol_capacity_Ah = initial_capacity_Ah * 0.8
 
         estimated_cycles: Optional[int] = None
         estimated_years: Optional[float] = None
         extrapolation_ratio: Optional[float] = None
-        projection_status = "no_decline_observed"
+        projection_status = "insufficient_evidence"
+        quality_reasons = []
+        relative_fade_per_cycle = (
+            max(-slope_Ah_per_cycle / initial_capacity_Ah, 0.0)
+            if initial_capacity_Ah > 0 else 0.0
+        )
+        candidate_cycles = None
         if slope_Ah_per_cycle < 0:
             eol_cycle = (eol_capacity_Ah - intercept_Ah) / slope_Ah_per_cycle
             if np.isfinite(eol_cycle) and eol_cycle > cycles[-1]:
-                estimated_cycles = max(int(np.ceil(eol_cycle)), 1)
-                estimated_years = (
-                    estimated_cycles / usage.daily_charge_cycles / 365.25
-                )
-                extrapolation_ratio = estimated_cycles / len(capacities)
-                projection_status = "linear_extrapolation_available"
-            else:
-                projection_status = "fit_does_not_support_forward_projection"
+                candidate_cycles = max(int(np.ceil(eol_cycle)), 1)
+                extrapolation_ratio = candidate_cycles / len(capacities)
+        if relative_fade_per_cycle < 1e-8:
+            quality_reasons.append("decline_is_below_identifiability_threshold")
+        if r_squared is None or r_squared < 0.5:
+            quality_reasons.append("fit_quality_is_insufficient")
+        if extrapolation_ratio is None:
+            quality_reasons.append("fit_does_not_support_forward_projection")
+        elif extrapolation_ratio > 1000.0:
+            quality_reasons.append("extrapolation_ratio_exceeds_1000")
+        if not quality_reasons and candidate_cycles is not None:
+            estimated_cycles = candidate_cycles
+            estimated_years = estimated_cycles / usage.daily_charge_cycles / 365.25
+            projection_status = "linear_extrapolation_available"
 
         trajectory = [
             {
@@ -156,6 +169,7 @@ class LifetimeMixin:
             "usage_profile": usage_data,
             "estimated_years_to_eol": estimated_years,
             "estimated_cycles_to_eol": estimated_cycles,
+            "decision_ready": False,
             "capacity_fade_rate_per_cycle_Ah": float(max(-slope_Ah_per_cycle, 0.0)),
             "initial_capacity_Ah": initial_capacity_Ah,
             "eol_capacity_Ah": eol_capacity_Ah,
@@ -168,6 +182,8 @@ class LifetimeMixin:
                 "r_squared": r_squared,
                 "observed_cycle_count": len(capacities),
                 "extrapolation_ratio": extrapolation_ratio,
+                "quality_reasons": quality_reasons,
+                "usable_for_screening": projection_status == "linear_extrapolation_available",
                 "extrapolation_distance": (
                     "far_beyond_observed_window"
                     if extrapolation_ratio is not None and extrapolation_ratio > 10

@@ -7,6 +7,7 @@ from battery_sim.core.cell import Cell
 from battery_sim.core.experiment import Environment
 from battery_sim.application.analysis.investigation import ConstraintChecker
 from battery_sim.interfaces.presenters.result import DualFormatResult
+from battery_sim.core.cell.capabilities import describe_parameter_capability
 
 
 class CellToolHandler:
@@ -30,6 +31,7 @@ class CellToolHandler:
             "chemistries": chemistries,
             "presets": [
                 {
+                    **self._preset_capabilities(preset),
                     "name": preset.name,
                     "chemistry": preset.chemistry,
                     "description": preset.description,
@@ -56,6 +58,25 @@ class CellToolHandler:
                 "Compare metrics across consistent scenarios to identify patterns",
             ],
         )
+
+    @staticmethod
+    def _preset_capabilities(preset) -> dict:
+        simulation = describe_parameter_capability(preset.cell)
+        packaging = (
+            preset.weight_kg > 0
+            and preset.volume_L > 0
+            and preset.cost_usd > 0
+        )
+        chemistry = (preset.chemistry or "").upper()
+        return {
+            "capabilities": {
+                **simulation,
+                "supports_packaging": packaging,
+                "supports_aging": chemistry == "NMC-OKANE",
+                "supports_charging": simulation["supports_simulation"],
+                "supports_operating_window": simulation["supports_simulation"],
+            }
+        }
 
     def check_feasibility(
         self,
